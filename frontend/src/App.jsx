@@ -9,6 +9,7 @@ import {
   ArrowRight, 
   ChevronLeft, 
   ChevronRight,
+  ChevronDown,
   Calendar, 
   ListTodo,
   TrendingUp,
@@ -190,6 +191,14 @@ function App() {
   const [questionSearch, setQuestionSearch] = useState('');
   const [questionSubjectFilter, setQuestionSubjectFilter] = useState('');
   const [examTopics, setExamTopics] = useState([]);
+  const [weaknessExpandedSubjects, setWeaknessExpandedSubjects] = useState({});
+
+  const toggleWeaknessSubjectExpansion = (subjectId) => {
+    setWeaknessExpandedSubjects(prev => ({
+      ...prev,
+      [subjectId]: !prev[subjectId]
+    }));
+  };
 
   const topicDetailsRef = useRef(null);
 
@@ -1065,7 +1074,14 @@ function App() {
                         const isSubjectActive = studyPlanWeaknesses.split(',').map(s => s.trim()).includes(subject.name);
                         return (
                           <div key={subject.id} className="subject-weakness-group">
-                            <div className="subject-title-chip-row">
+                            <div className="subject-title-chip-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <button
+                                type="button"
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                onClick={() => toggleWeaknessSubjectExpansion(subject.id)}
+                              >
+                                {weaknessExpandedSubjects[subject.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                              </button>
                               <button 
                                 className={`weakness-chip subject-chip ${isSubjectActive ? 'active' : ''}`}
                                 onClick={() => handleToggleWeakness(subject.name)}
@@ -1073,20 +1089,22 @@ function App() {
                                 {subject.name}
                               </button>
                             </div>
-                            <div className="subtopics-chip-row">
-                              {subject.subtopics && subject.subtopics.map(subtopic => {
-                                const isSubtopicActive = studyPlanWeaknesses.split(',').map(s => s.trim()).includes(subtopic.name);
-                                return (
-                                  <button 
-                                    key={subtopic.id} 
-                                    className={`weakness-chip subtopic-chip ${isSubtopicActive ? 'active' : ''}`}
-                                    onClick={() => handleToggleWeakness(subtopic.name)}
-                                  >
-                                    {subtopic.name}
-                                  </button>
-                                );
-                              })}
-                            </div>
+                            {weaknessExpandedSubjects[subject.id] && (
+                              <div className="subtopics-chip-row" style={{ marginTop: '8px', paddingLeft: '28px' }}>
+                                {subject.subtopics && subject.subtopics.map(subtopic => {
+                                  const isSubtopicActive = studyPlanWeaknesses.split(',').map(s => s.trim()).includes(subtopic.name);
+                                  return (
+                                    <button
+                                      key={subtopic.id}
+                                      className={`weakness-chip subtopic-chip ${isSubtopicActive ? 'active' : ''}`}
+                                      onClick={() => handleToggleWeakness(subtopic.name)}
+                                    >
+                                      {subtopic.name}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
