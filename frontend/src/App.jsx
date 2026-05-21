@@ -323,6 +323,7 @@ function App() {
     const params = new URLSearchParams();
     if (questionSearch.trim()) params.set('search', questionSearch.trim());
     if (questionSubjectFilter) params.set('subject_id', questionSubjectFilter);
+    if (selectedExam) params.set('exam_id', selectedExam.id);
     const queryStr = params.toString() ? `?${params.toString()}` : '';
 
     let url = '';
@@ -336,7 +337,7 @@ function App() {
       .then(res => res.json())
       .then(data => setQuestions(data))
       .catch(err => console.error(err));
-  }, [selectedPaper, questionSubjectFilter, questionSearch]);
+  }, [selectedExam, selectedPaper, questionSubjectFilter, questionSearch]);
 
   // Trigger fetch when paper or subject filters change
   useEffect(() => {
