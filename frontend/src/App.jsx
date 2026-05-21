@@ -195,6 +195,8 @@ function App() {
   const [questionSubjectFilter, setQuestionSubjectFilter] = useState('');
   const [examTopics, setExamTopics] = useState([]);
   const [weaknessExpandedSubjects, setWeaknessExpandedSubjects] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [questionsPerPage, setQuestionsPerPage] = useState(10);
 
   const toggleWeaknessSubjectExpansion = (subjectId) => {
     setWeaknessExpandedSubjects(prev => ({
@@ -210,6 +212,10 @@ function App() {
       topicDetailsRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [selectedHeatmapTopic]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedPaper, questionSubjectFilter, questionSearch]);
 
   // Fetch Categories on Mount
   useEffect(() => {
@@ -1166,7 +1172,47 @@ function App() {
           )}
 
           {/* TAB 4: Question Browser — Overhauled with Options rendering and Global search */}
-          {activeTab === 'questions' && (
+          {activeTab === 'questions' && (() => {
+            const totalQuestions = questions.length;
+            const totalPages = Math.ceil(totalQuestions / (questionsPerPage === 'all' ? totalQuestions || 1 : questionsPerPage));
+            const indexOfLastQuestion = currentPage * (questionsPerPage === 'all' ? totalQuestions : questionsPerPage);
+            const indexOfFirstQuestion = indexOfLastQuestion - (questionsPerPage === 'all' ? totalQuestions : questionsPerPage);
+
+            const currentQuestions = questionsPerPage === 'all'
+              ? questions
+              : questions.slice(indexOfFirstQuestion, indexOfLastQuestion);
+
+            const getPageNumbers = () => {
+              const pages = [];
+              const maxVisible = 5;
+              if (totalPages <= maxVisible) {
+                for (let i = 1; i <= totalPages; i++) pages.push(i);
+              } else {
+                // Always include page 1
+                pages.push(1);
+
+                if (currentPage > 3) {
+                  pages.push('...');
+                }
+
+                const start = Math.max(2, currentPage - 1);
+                const end = Math.min(totalPages - 1, currentPage + 1);
+
+                for (let i = start; i <= end; i++) {
+                  pages.push(i);
+                }
+
+                if (currentPage < totalPages - 2) {
+                  pages.push('...');
+                }
+
+                // Always include last page
+                pages.push(totalPages);
+              }
+              return pages;
+            };
+
+            return (
             <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
                 <div>
@@ -1235,7 +1281,7 @@ function App() {
                     </p>
                   </div>
                 ) : (
-                  questions.map(q => {
+                  currentQuestions.map(q => {
                     const diffLabel = q.difficulty === 'H' ? 'Hard' : q.difficulty === 'M' ? 'Medium' : 'Easy';
                     const parsed = parseOptions(q.question_text);
                     const cleanText = parsed ? parsed.cleanText : q.question_text;
@@ -1299,8 +1345,74 @@ function App() {
                   })
                 )}
               </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="pagination-container">
+                  <div className="pagination-info">
+                    Showing {indexOfFirstQuestion + 1} to {Math.min(indexOfLastQuestion, totalQuestions)} of {totalQuestions} questions
+                  </div>
+
+                  <div className="pagination-buttons">
+                    <button
+                      className="btn-secondary pagination-arrow"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(prev => prev - 1)}
+                    >
+                      Previous
+                    </button>
+
+                    {getPageNumbers().map((pageNum, idx) => {
+                      if (pageNum === '...') {
+                        return (
+                          <span key={`ellipsis-${idx}`} className="pagination-ellipsis">
+                            ...
+                          </span>
+                        );
+                      }
+                      return (
+                        <button
+                          key={`page-${pageNum}`}
+                          className={`btn-secondary pagination-number ${currentPage === pageNum ? 'active' : ''}`}
+                          onClick={() => setCurrentPage(pageNum)}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      className="btn-secondary pagination-arrow"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(prev => prev + 1)}
+                    >
+                      Next
+                    </button>
+                  </div>
+
+                  <div className="pagination-select-wrapper">
+                    <select
+                      className="question-filter-select pagination-select"
+                      value={questionsPerPage}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setQuestionsPerPage(val === 'all' ? 'all' : parseInt(val));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <option value={10}>10 per page</option>
+                      <option value={25}>25 per page</option>
+                      <option value={50}>50 per page</option>
+                      <option value={100}>100 per page</option>
+                      <option value="all">Show All</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
             </div>
-          )}
+            );
+          })()}
         </div>
       )}
     </div>
