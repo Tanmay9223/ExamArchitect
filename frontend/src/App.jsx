@@ -1037,6 +1037,8 @@ function App() {
                       type="number" 
                       value={studyPlanDays} 
                       onChange={(e) => setStudyPlanDays(e.target.value)}
+                      min="7"
+                      max="365"
                       style={{ padding: '8px', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white', width: '120px' }} 
                     />
                   </div>
