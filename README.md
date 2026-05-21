@@ -1,4 +1,4 @@
-<![CDATA[<div align="center">
+<div align="center">
 
 # 🎯 ExamArchitect
 
@@ -194,7 +194,7 @@ ExamArchitect/
 
 ```bash
 # Clone the repository
-git clone https://github.com/<your-username>/ExamArchitect.git
+git clone https://github.com/SparshGarg999/ExamArchitect.git
 cd ExamArchitect
 
 # Create Python virtual environment
@@ -483,4 +483,4 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 <div align="center">
 <sub>Built with ❤️ for exam aspirants everywhere</sub>
 </div>
-]]>
+
