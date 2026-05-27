@@ -17,10 +17,15 @@ class UserResponse(BaseModel):
     name: str
     email: EmailStr
     role: str
+    requires_password_change: bool = False
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+class PasswordResetRequest(BaseModel):
+    new_password: str
+    confirm_password: str
 
 class Token(BaseModel):
     access_token: str

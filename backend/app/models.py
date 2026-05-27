@@ -161,6 +161,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     role = Column(String, default="user") # "user" or "admin"
+    requires_password_change = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     generated_exams = relationship("UserGeneratedExam", back_populates="user", cascade="all, delete-orphan")

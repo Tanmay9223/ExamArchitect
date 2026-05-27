@@ -239,6 +239,11 @@ npm run dev
 # Frontend starts at http://localhost:5173
 ```
 
+**Default Admin Credentials:**
+- **Email**: `admin@examarchitect.com`
+- **Password**: `AdminPassword123!`
+*(You will be prompted to change this upon your first login to the Admin Panel)*
+
 **First-time data seeding:**
 1. Open the app at `http://localhost:5173`
 2. Navigate to the **Dashboard** tab
