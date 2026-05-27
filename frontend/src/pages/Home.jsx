@@ -104,17 +104,17 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Mobile Layout (Globe small and on the left of the hero text) */}
+            {/* Mobile Layout (Globe small and on the right of the hero text) */}
             <div className="flex lg:hidden flex-col gap-4 w-full">
-              <div className="flex flex-row items-center gap-4">
-                <div className="flex-shrink-0">
-                  <GithubGlobe width={130} height={130} />
-                </div>
+              <div className="flex flex-row items-center gap-4 justify-between">
                 <div className="flex-grow text-left">
                   <h1 className="text-3xl font-display font-bold leading-tight">
                     Statistical Exam <br /> Analytics <br />
                     <span className="text-gradient">Engineered to Predict.</span>
                   </h1>
+                </div>
+                <div className="flex-shrink-0">
+                  <GithubGlobe width={130} height={130} />
                 </div>
               </div>
               <p className="text-slate-400 text-sm leading-relaxed mt-2 text-left">
