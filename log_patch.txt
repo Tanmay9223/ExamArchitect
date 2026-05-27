@@ -1,0 +1,13 @@
+﻿commit 9d0f13cd1cffd4fd9fd4cd8b1444e1ee45baebe8
+Author: google-labs-jules[bot] <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date:   Thu May 21 16:45:00 2026 +0000
+
+    feat(frontend): implement MCQ options rendering in QuestionCards
+    
+    - Extracted `QuestionCard` component to manage its own `revealed` state instead of using `AnswerSpoiler`.
+    - Added `parseOptions` helper to extract (A), (B), (C), (D) options from `question_text`.
+    - Replaced plain text options with a `.mcq-options-grid` displaying styled `.mcq-option` cards.
+    - Added logic to match the correct option letter with `q.correct_answer` and apply a `.correct` styling when revealed.
+    - Updated `App.css` to include `.mcq-options-grid`, `.mcq-option`, and `.mcq-option.correct` with a soft green glow.
+    
+    Co-authored-by: SparshGarg999 <76697238+SparshGarg999@users.noreply.github.com>
