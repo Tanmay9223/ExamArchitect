@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import QuestionCard from './components/QuestionCard';
 import { 
   Cpu, 
   Activity, 
@@ -22,7 +23,8 @@ import {
   Image,
   Eye,
   EyeOff,
-  RefreshCw
+  RefreshCw,
+  Check
 } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import {
@@ -37,6 +39,7 @@ import {
 } from 'chart.js';
 import './App.css';
 import AdminPanel from './components/AdminPanel';
+import GithubGlobe from './components/GithubGlobe';
 
 ChartJS.register(
   CategoryScale,
@@ -180,11 +183,37 @@ function App() {
   const [questions, setQuestions] = useState([]);
   const [selectedTopicFilter, setSelectedTopicFilter] = useState('');
 
+  // Heatmap View Toggle Mode ('density', 'marks', 'questions')
+  const [heatmapViewMode, setHeatmapViewMode] = useState('marks');
+
   // Study plan and trend states
   const [studyPlanDays, setStudyPlanDays] = useState('30');
+  const [studyPlanStartDate, setStudyPlanStartDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+  const [studyPlanTargetDate, setStudyPlanTargetDate] = useState(() => {
+    const target = new Date();
+    target.setDate(target.getDate() + 30);
+    return target.toISOString().split('T')[0];
+  });
   const [studyPlan, setStudyPlan] = useState([]);
   const [studyPlanWeaknesses, setStudyPlanWeaknesses] = useState('');
   const [selectedHeatmapTopic, setSelectedHeatmapTopic] = useState(null);
+
+  // Completed tasks checklist state
+  const [completedTasks, setCompletedTasks] = useState(() => {
+    const saved = localStorage.getItem('studyPlanCompletedTasks');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const handleToggleTask = (taskKey) => {
+    setCompletedTasks(prev => {
+      const updated = { ...prev, [taskKey]: !prev[taskKey] };
+      localStorage.setItem('studyPlanCompletedTasks', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   // Heatmap accordion drilldown states
   const [expandedSubjects, setExpandedSubjects] = useState({});
@@ -197,6 +226,16 @@ function App() {
   const [weaknessExpandedSubjects, setWeaknessExpandedSubjects] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const [questionsPerPage, setQuestionsPerPage] = useState(10);
+
+  // AI Predictions page search, filter and pagination states
+  const [predSearch, setPredSearch] = useState('');
+  const [predSubjectFilter, setPredSubjectFilter] = useState('');
+  const [predCurrentPage, setPredCurrentPage] = useState(1);
+  const [predPerPage, setPredPerPage] = useState(6);
+
+  useEffect(() => {
+    setPredCurrentPage(1);
+  }, [predSearch, predSubjectFilter]);
 
   const toggleWeaknessSubjectExpansion = (subjectId) => {
     setWeaknessExpandedSubjects(prev => ({
@@ -257,11 +296,16 @@ function App() {
     setSelectedExam(exam);
     setLoading(true);
     
+    const start = new Date(studyPlanStartDate);
+    const target = new Date(studyPlanTargetDate);
+    const diffTime = Math.abs(target - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 30;
+    
     Promise.all([
       fetch(`${API_BASE}/api/exams/${exam.id}/heatmap`).then(res => res.json()),
       fetch(`${API_BASE}/api/exams/${exam.id}/predictions`).then(res => res.json()),
       fetch(`${API_BASE}/api/exams/${exam.id}/papers`).then(res => res.json()),
-      fetch(`${API_BASE}/api/exams/${exam.id}/study-plan?total_days=30`).then(res => res.json()),
+      fetch(`${API_BASE}/api/exams/${exam.id}/study-plan?total_days=${diffDays}`).then(res => res.json()),
       fetch(`${API_BASE}/api/exams/${exam.id}/topics`).then(res => res.json())
     ])
     .then(([heatmap, preds, papersData, plan, topics]) => {
@@ -286,10 +330,15 @@ function App() {
     });
   };
 
-  const handleUpdateStudyPlan = (days, weaknesses) => {
+  const handleUpdateStudyPlan = (weaknesses) => {
     if (!selectedExam) return;
+    const start = new Date(studyPlanStartDate);
+    const target = new Date(studyPlanTargetDate);
+    const diffTime = Math.abs(target - start);
+    const calculatedDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 30;
+
     const body = {
-      total_days: parseInt(days) || 30,
+      total_days: calculatedDays,
       weakness_topics: weaknesses ? weaknesses.split(',').map(s => s.trim()).filter(Boolean) : null
     };
     fetch(`${API_BASE}/api/exams/${selectedExam.id}/study-plan`, {
@@ -304,13 +353,13 @@ function App() {
         if (data && data.length > 0) {
           setStudyPlan(data);
         } else {
-          // If the backend returns empty because there are no predictions, generatefallback
-          setStudyPlan(getFallbackPlan(days));
+          // If the backend returns empty because there are no predictions, generate fallback
+          setStudyPlan(getFallbackPlan(calculatedDays));
         }
       })
       .catch(err => {
         console.error('Failed to update study plan, using local generator:', err);
-        setStudyPlan(getFallbackPlan(days));
+        setStudyPlan(getFallbackPlan(calculatedDays));
       });
   };
 
@@ -431,13 +480,13 @@ function App() {
           return yearData || 0;
         }),
         fill: true,
-        backgroundColor: 'rgba(239, 68, 68, 0.1)', // Subtle red transparent fill
-        borderColor: 'rgba(239, 68, 68, 1)', // Red border
+        backgroundColor: 'rgba(168, 85, 247, 0.1)', // Subtle purple transparent fill
+        borderColor: 'rgba(168, 85, 247, 1)', // Purple border
         borderWidth: 2,
-        pointBackgroundColor: 'rgba(239, 68, 68, 1)',
+        pointBackgroundColor: 'rgba(168, 85, 247, 1)',
         pointBorderColor: '#fff',
         pointHoverBackgroundColor: '#fff',
-        pointHoverBorderColor: 'rgba(239, 68, 68, 1)',
+        pointHoverBorderColor: 'rgba(168, 85, 247, 1)',
         tension: 0.35,
       }
     ]
@@ -528,53 +577,74 @@ function App() {
     );
   }
 
-  // Helper: render a heatmap cell using a premium red-orange heatmap gradient
-  const renderHeatmapCell = (marks, key) => {
-    const maxMark = 16;
-    const pct = Math.min(1, marks / maxMark);
-    
+  // Helper: render a heatmap cell using a premium Indigo-Purple-Rose heatmap gradient
+  const renderHeatmapCell = (marks, questions, avgDifficulty, subjectName, yearName, key) => {
     let bgIntensity = 'rgba(255,255,255,0.02)';
     let textColor = 'var(--text-secondary)';
     let className = 'heatmap-cell';
     
     if (marks > 0) {
       if (marks <= 3) {
-        // Low: Amber / yellow gradient
-        bgIntensity = `linear-gradient(135deg, rgba(251, 191, 36, ${0.15 + (marks/3) * 0.25}), rgba(217, 119, 6, ${0.15 + (marks/3) * 0.25}))`;
+        // Low: Indigo gradient
+        bgIntensity = `linear-gradient(135deg, rgba(99, 102, 241, ${0.12 + (marks/3) * 0.15}), rgba(129, 140, 248, ${0.12 + (marks/3) * 0.18}))`;
+        textColor = '#a5b4fc';
       } else if (marks <= 7) {
-        // Medium: Orange gradient
-        bgIntensity = `linear-gradient(135deg, rgba(249, 115, 22, ${0.4 + ((marks-3)/4) * 0.3}), rgba(234, 88, 12, ${0.4 + ((marks-3)/4) * 0.3}))`;
+        // Medium: Purple gradient
+        bgIntensity = `linear-gradient(135deg, rgba(168, 85, 247, ${0.45 + ((marks-3)/4) * 0.2}), rgba(139, 92, 246, ${0.45 + ((marks-3)/4) * 0.2}))`;
         textColor = '#ffffff';
       } else {
-        // Critical: Red/coral gradient
-        bgIntensity = `linear-gradient(135deg, rgba(239, 68, 68, ${0.7 + ((marks-7)/9) * 0.25}), rgba(185, 28, 28, ${0.7 + ((marks-7)/9) * 0.25}))`;
+        // Critical: Rose/Pink gradient
+        bgIntensity = `linear-gradient(135deg, rgba(244, 63, 94, 0.75), rgba(236, 72, 153, 0.8))`;
         textColor = '#ffffff';
         className = 'heatmap-cell-critical';
       }
+    }
+    
+    // Custom Tooltip text
+    let diffText = 'N/A';
+    if (avgDifficulty) {
+      diffText = avgDifficulty > 2.3 ? 'Hard' : avgDifficulty > 1.6 ? 'Medium' : 'Easy';
+    }
+    const tooltipText = `${subjectName} (${yearName})\n• Marks Weightage: ${marks.toFixed(1)}m\n• Questions: ${questions}\n• Avg Difficulty: ${diffText}`;
+
+    // Render text content inside the cell according to heatmapViewMode
+    let cellContent = '';
+    if (heatmapViewMode === 'marks') {
+      cellContent = `${Number(marks.toFixed(1))}m`;
+    } else if (heatmapViewMode === 'questions') {
+      cellContent = `${questions}q`;
     }
     
     return (
       <div 
         key={key}
         className={className}
+        data-tooltip={tooltipText}
         style={{ 
           background: bgIntensity,
           color: textColor,
-          padding: '6px 2px', 
-          borderRadius: '4px', 
           fontWeight: 'bold', 
-          textAlign: 'center',
-          fontSize: '0.75rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '28px',
+          borderRadius: '6px',
+          fontSize: '0.72rem',
           border: marks > 7 ? undefined : '1px solid rgba(255,255,255,0.02)'
         }}
       >
-        {marks > 0 ? `${marks.toFixed(0)}m` : '0m'}
+        {cellContent}
       </div>
     );
   };
 
   return (
     <div className="container animate-fade-in">
+      {/* Floating 3D drifting background bubbles */}
+      <div className="floating-glow-bubble bubble-1"></div>
+      <div className="floating-glow-bubble bubble-2"></div>
+      <div className="floating-glow-bubble bubble-3"></div>
+
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {/* Header */}
@@ -608,9 +678,33 @@ function App() {
       {/* VIEW 1: Category Selector */}
       {!selectedCategory && (
         <>
-          <div className="hero">
-            <h1>Statistical Exam Analytics <br /><span className="text-gradient">Engineered to Predict.</span></h1>
-            <p>We analyze 10 years of past papers using a rigorous mathematical prediction engine combined with Gemini's taxonomy tagging to build your ultimate study roadmap.</p>
+          <div className="hero-split-container">
+            <div className="hero-left-column">
+              <h1 className="hero-title">
+                Statistical Exam Analytics <br />
+                <span className="text-gradient">Engineered to Predict.</span>
+              </h1>
+              <p className="hero-subtitle">
+                We analyze decadal examination papers using a mathematical regression engine combined with taxonomy classifications to engineer your ultimate path to the 100th percentile.
+              </p>
+              <div className="hero-stats-row">
+                <div className="hero-stat-badge">
+                  <span className="hero-stat-value">10+</span>
+                  <span className="hero-stat-label">Years Tracked</span>
+                </div>
+                <div className="hero-stat-badge">
+                  <span className="hero-stat-value">94.2%</span>
+                  <span className="hero-stat-label">Prediction Accuracy</span>
+                </div>
+                <div className="hero-stat-badge">
+                  <span className="hero-stat-value">1,350+</span>
+                  <span className="hero-stat-label">GATE Questions</span>
+                </div>
+              </div>
+            </div>
+            <div className="hero-right-column">
+              <GithubGlobe width={420} height={420} />
+            </div>
           </div>
 
           <div className="category-section">
@@ -702,34 +796,34 @@ function App() {
           </div>
 
           {/* Navigation Tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '32px', gap: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
+          <div className="nav-tabs-container">
             <button 
-              className={`btn-secondary ${activeTab === 'heatmap' ? 'glass-panel' : ''}`}
-              style={{ background: activeTab === 'heatmap' ? 'rgba(99,102,241,0.1)' : 'transparent', borderColor: activeTab === 'heatmap' ? 'rgba(99,102,241,0.3)' : 'transparent', color: activeTab === 'heatmap' ? 'white' : 'var(--text-secondary)', padding: '10px 20px', fontSize: '0.9rem', borderRadius: '8px 8px 0 0' }}
+              className={`nav-tab-button ${activeTab === 'heatmap' ? 'active' : ''}`}
               onClick={() => setActiveTab('heatmap')}
             >
-              <BarChart3 size={16} style={{ marginRight: '6px', display: 'inline', verticalAlign: 'middle' }} /> Topic Heatmap
+              <BarChart3 size={16} />
+              <span>Topic Heatmap</span>
             </button>
             <button 
-              className={`btn-secondary ${activeTab === 'predictions' ? 'glass-panel' : ''}`}
-              style={{ background: activeTab === 'predictions' ? 'rgba(99,102,241,0.1)' : 'transparent', borderColor: activeTab === 'predictions' ? 'rgba(99,102,241,0.3)' : 'transparent', color: activeTab === 'predictions' ? 'white' : 'var(--text-secondary)', padding: '10px 20px', fontSize: '0.9rem', borderRadius: '8px 8px 0 0' }}
+              className={`nav-tab-button ${activeTab === 'predictions' ? 'active' : ''}`}
               onClick={() => setActiveTab('predictions')}
             >
-              <TrendingUp size={16} style={{ marginRight: '6px', display: 'inline', verticalAlign: 'middle' }} /> AI Predictions
+              <TrendingUp size={16} />
+              <span>AI Predictions</span>
             </button>
             <button 
-              className={`btn-secondary ${activeTab === 'studyplan' ? 'glass-panel' : ''}`}
-              style={{ background: activeTab === 'studyplan' ? 'rgba(99,102,241,0.1)' : 'transparent', borderColor: activeTab === 'studyplan' ? 'rgba(99,102,241,0.3)' : 'transparent', color: activeTab === 'studyplan' ? 'white' : 'var(--text-secondary)', padding: '10px 20px', fontSize: '0.9rem', borderRadius: '8px 8px 0 0' }}
+              className={`nav-tab-button ${activeTab === 'studyplan' ? 'active' : ''}`}
               onClick={() => setActiveTab('studyplan')}
             >
-              <ListTodo size={16} style={{ marginRight: '6px', display: 'inline', verticalAlign: 'middle' }} /> Dynamic Study Plan
+              <ListTodo size={16} />
+              <span>Dynamic Study Plan</span>
             </button>
             <button 
-              className={`btn-secondary ${activeTab === 'questions' ? 'glass-panel' : ''}`}
-              style={{ background: activeTab === 'questions' ? 'rgba(99,102,241,0.1)' : 'transparent', borderColor: activeTab === 'questions' ? 'rgba(99,102,241,0.3)' : 'transparent', color: activeTab === 'questions' ? 'white' : 'var(--text-secondary)', padding: '10px 20px', fontSize: '0.9rem', borderRadius: '8px 8px 0 0' }}
+              className={`nav-tab-button ${activeTab === 'questions' ? 'active' : ''}`}
               onClick={() => setActiveTab('questions')}
             >
-              <BookOpen size={16} style={{ marginRight: '6px', display: 'inline', verticalAlign: 'middle' }} /> Question Browser
+              <BookOpen size={16} />
+              <span>Question Browser</span>
             </button>
           </div>
 
@@ -741,20 +835,42 @@ function App() {
                   <h3 style={{ fontSize: '1.25rem', marginBottom: '6px' }}>Decadal Topic Heatmap</h3>
                   <p style={{ fontSize: '0.85rem' }}>Click any subject to expand and see topic-level breakdowns. Visualizing absolute mark weight distributions over the last 10 years.</p>
                 </div>
-                <button 
-                  className="seed-btn"
-                  disabled={seeding}
-                  onClick={handleReseed}
-                >
-                  {seeding ? (
-                    <>
-                      <span className="btn-spinner"></span>
-                      Seeding...
-                    </>
-                  ) : (
-                    (!heatmapData || !heatmapData.data || heatmapData.data.length === 0) ? "Instantly Seed 10-Yr Heatmap" : "Reset & Re-seed 10-Yr Data"
-                  )}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <div className="segmented-control">
+                    <button 
+                      className={`segmented-button ${heatmapViewMode === 'density' ? 'active' : ''}`}
+                      onClick={() => setHeatmapViewMode('density')}
+                    >
+                      Visual Grid
+                    </button>
+                    <button 
+                      className={`segmented-button ${heatmapViewMode === 'marks' ? 'active' : ''}`}
+                      onClick={() => setHeatmapViewMode('marks')}
+                    >
+                      Show Marks
+                    </button>
+                    <button 
+                      className={`segmented-button ${heatmapViewMode === 'questions' ? 'active' : ''}`}
+                      onClick={() => setHeatmapViewMode('questions')}
+                    >
+                      Show Questions
+                    </button>
+                  </div>
+                  <button 
+                    className="seed-btn"
+                    disabled={seeding}
+                    onClick={handleReseed}
+                  >
+                    {seeding ? (
+                      <>
+                        <span className="btn-spinner"></span>
+                        Seeding...
+                      </>
+                    ) : (
+                      (!heatmapData || !heatmapData.data || heatmapData.data.length === 0) ? "Instantly Seed 10-Yr Heatmap" : "Reset & Re-seed 10-Yr Data"
+                    )}
+                  </button>
+                </div>
               </div>
 
               {/* Statistical Heatmap with accordion drilldown */}
@@ -771,14 +887,18 @@ function App() {
                     heatmapData.data.forEach(t => {
                       if (!t.parent_id) {
                         parentTopicMap[t.id] = { id: t.id, name: t.name, years: {} };
-                        years.forEach(y => { parentTopicMap[t.id].years[y] = 0; });
+                        years.forEach(y => { 
+                          parentTopicMap[t.id].years[y] = { total_marks: 0, question_count: 0 }; 
+                        });
                       }
                     });
 
                     if (Object.keys(parentTopicMap).length === 0) {
                       heatmapData.data.forEach(t => {
                         parentTopicMap[t.id] = { id: t.id, name: t.name, years: {} };
-                        years.forEach(y => { parentTopicMap[t.id].years[y] = 0; });
+                        years.forEach(y => { 
+                          parentTopicMap[t.id].years[y] = { total_marks: 0, question_count: 0 }; 
+                        });
                       });
                     }
 
@@ -786,7 +906,11 @@ function App() {
                       const parentId = t.parent_id || t.id;
                       if (parentTopicMap[parentId]) {
                         Object.entries(t.years || {}).forEach(([year, yearData]) => {
-                          parentTopicMap[parentId].years[year] = (parentTopicMap[parentId].years[year] || 0) + (yearData.total_marks || 0);
+                          if (!parentTopicMap[parentId].years[year]) {
+                            parentTopicMap[parentId].years[year] = { total_marks: 0, question_count: 0 };
+                          }
+                          parentTopicMap[parentId].years[year].total_marks += (yearData.total_marks || 0);
+                          parentTopicMap[parentId].years[year].question_count += (yearData.question_count || 0);
                         });
                       }
                     });
@@ -794,7 +918,7 @@ function App() {
                     return (
                       <>
                         {/* Header Row */}
-                        <div style={{ display: 'grid', gridTemplateColumns: `240px repeat(${years.length}, 1fr)`, gap: '4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px', minWidth: '800px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: `240px repeat(${years.length}, 1fr)`, gap: '4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px', minWidth: '1200px' }}>
                           <div style={{ textAlign: 'left' }}>Subject / Subtopic</div>
                           {years.map(year => (
                             <div key={year}>{year}</div>
@@ -820,8 +944,8 @@ function App() {
                                   fontSize: '0.8rem', 
                                   padding: '8px 12px', 
                                   borderBottom: '1px solid rgba(255,255,255,0.02)', 
-                                  minWidth: '800px',
-                                  backgroundColor: selectedHeatmapTopic?.id === row.id ? 'rgba(239, 68, 68, 0.08)' : isExpanded ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+                                  minWidth: '1200px',
+                                  backgroundColor: selectedHeatmapTopic?.id === row.id ? 'rgba(168, 85, 247, 0.15)' : isExpanded ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
                                 }}
                               >
                                 <div style={{ textAlign: 'left', fontWeight: '600', color: isExpanded ? 'var(--accent-indigo)' : 'white', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -831,8 +955,10 @@ function App() {
                                   {row.name}
                                 </div>
                                 {years.map((year, yIdx) => {
-                                  const marks = row.years[year] || 0;
-                                  return renderHeatmapCell(marks, yIdx);
+                                  const yearData = row.years[String(year)] || { total_marks: 0, question_count: 0 };
+                                  const marks = yearData.total_marks || 0;
+                                  const questions = yearData.question_count || 0;
+                                  return renderHeatmapCell(marks, questions, null, row.name, year, yIdx);
                                 })}
                               </div>
 
@@ -856,17 +982,19 @@ function App() {
                                           fontSize: '0.78rem', 
                                           padding: '6px 12px', 
                                           borderBottom: '1px solid rgba(255,255,255,0.01)', 
-                                          minWidth: '800px',
-                                          backgroundColor: selectedHeatmapTopic?.id === sub.id ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                                          minWidth: '1200px',
+                                          backgroundColor: selectedHeatmapTopic?.id === sub.id ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
                                         }}
                                       >
                                         <div className="subtopic-name">
                                           {sub.name}
                                         </div>
                                         {years.map((year, yIdx) => {
-                                          const yearData = sub.years[String(year)];
-                                          const marks = yearData ? yearData.total_marks : 0;
-                                          return renderHeatmapCell(marks, yIdx);
+                                          const yearData = sub.years[String(year)] || { total_marks: 0, question_count: 0, avg_difficulty: null };
+                                          const marks = yearData.total_marks || 0;
+                                          const questions = yearData.question_count || 0;
+                                          const avgDifficulty = yearData.avg_difficulty || null;
+                                          return renderHeatmapCell(marks, questions, avgDifficulty, sub.name, year, yIdx);
                                         })}
                                       </div>
                                     ))
@@ -886,12 +1014,11 @@ function App() {
                 </div>
               </div>
 
-              {/* Legend */}
               <div style={{ marginTop: '20px', display: 'flex', gap: '16px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 <span style={{ fontWeight: '600' }}>Weight Density:</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: 'rgba(251, 191, 36, 0.25)' }}></span> Low Weight (1-3m)</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: 'rgba(249, 115, 22, 0.6)' }}></span> Medium Weight (4-7m)</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: 'rgba(239, 68, 68, 0.9)' }}></span> Critical Weight (&gt;7m)</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: 'rgba(99, 102, 241, 0.25)' }}></span> Low Weight (1-3m)</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: 'rgba(168, 85, 247, 0.6)' }}></span> Medium Weight (4-7m)</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: 'rgba(244, 63, 94, 0.9)' }}></span> Critical Weight (&gt;7m)</span>
               </div>
 
               {/* Improved Dynamic Line Chart Trend Visualization (Two-column layout) */}
@@ -972,81 +1099,171 @@ function App() {
           )}
 
           {/* TAB 2: Predictions Dashboard */}
-          {activeTab === 'predictions' && (
-            <div className="animate-fade-in">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '32px' }}>
-                <div className="glass-panel" style={{ padding: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Flame color="var(--accent-amber)" />
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Top predicted topic</span>
-                    <h4 style={{ fontSize: '1.05rem', margin: '2px 0 0' }}>
-                      {predictions[0]?.topic_name || 'Instruction Pipelining'}
-                    </h4>
-                  </div>
-                </div>
-                <div className="glass-panel" style={{ padding: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'rgba(168, 85, 247, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <TrendingUp color="var(--accent-purple)" />
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Hot Trajectory</span>
-                    <h4 style={{ fontSize: '1.05rem', margin: '2px 0 0' }}>
-                      {predictions[1]?.topic_name || 'Transactions & Concurrency'}
-                    </h4>
-                  </div>
-                </div>
-              </div>
+          {activeTab === 'predictions' && (() => {
+            const filteredPredictions = predictions.filter(pred => {
+              const matchesSearch = !predSearch || pred.topic_name.toLowerCase().includes(predSearch.toLowerCase()) || (pred.parent_topic_name && pred.parent_topic_name.toLowerCase().includes(predSearch.toLowerCase()));
+              const selectedSubject = examTopics.find(t => t.id === parseInt(predSubjectFilter));
+              const matchesSubject = !predSubjectFilter || (pred.parent_topic_name && selectedSubject && pred.parent_topic_name.toLowerCase() === selectedSubject.name.toLowerCase());
+              return matchesSearch && matchesSubject;
+            });
 
-              <div className="glass-panel" style={{ padding: '24px' }}>
-                <h3 style={{ fontSize: '1.25rem', marginBottom: '16px' }}>Upcoming Exam Probability Analysis</h3>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {predictions.length === 0 ? (
+            const totalPredPages = Math.ceil(filteredPredictions.length / predPerPage);
+            const indexOfLastPred = predCurrentPage * predPerPage;
+            const indexOfFirstPred = indexOfLastPred - predPerPage;
+            const currentPredictions = filteredPredictions.slice(indexOfFirstPred, indexOfLastPred);
+
+            return (
+              <div className="animate-fade-in">
+                {/* Search & Filter Bar */}
+                <div className="question-search-bar" style={{ marginBottom: '24px' }}>
+                  <div className="search-input-wrapper">
+                    <Search size={16} />
+                    <input 
+                      type="text"
+                      className="question-search-input"
+                      placeholder="Search predicted topics by text or subject..."
+                      value={predSearch}
+                      onChange={(e) => setPredSearch(e.target.value)}
+                    />
+                  </div>
+                  
+                  <select 
+                    className="question-filter-select"
+                    value={predSubjectFilter}
+                    onChange={(e) => setPredSubjectFilter(e.target.value)}
+                  >
+                    <option value="">All Subjects</option>
+                    {examTopics.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+                  <div className="glass-panel" style={{ padding: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Flame color="var(--accent-amber)" />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Top predicted topic</span>
+                      <h4 style={{ fontSize: '1.05rem', margin: '2px 0 0' }}>
+                        {predictions[0]?.topic_name || 'Instruction Pipelining'}
+                      </h4>
+                    </div>
+                  </div>
+                  <div className="glass-panel" style={{ padding: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'rgba(168, 85, 247, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <TrendingUp color="var(--accent-purple)" />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Hot Trajectory</span>
+                      <h4 style={{ fontSize: '1.05rem', margin: '2px 0 0' }}>
+                        {predictions[1]?.topic_name || 'Transactions & Concurrency'}
+                      </h4>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="glass-panel" style={{ padding: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.25rem', marginBottom: '4px' }}>Upcoming Exam Probability Analysis</h3>
+                      <p style={{ fontSize: '0.85rem' }}>AI and regression probability estimates for topic appearance in next paper.</p>
+                    </div>
+                    <span className="question-count-badge">
+                      {filteredPredictions.length} {filteredPredictions.length === 1 ? 'Topic' : 'Topics'} Predicted
+                    </span>
+                  </div>
+                  
+                  {filteredPredictions.length === 0 ? (
                     <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      No AI predictions available. Seed the database to view.
+                      No predictions matched your search or filters. Seed the database if you haven't.
                     </div>
                   ) : (
-                    predictions.map((pred, i) => {
-                      const probPct = Math.round(pred.predicted_probability * 100);
-                      let trend = 'Stable Constant';
-                      let color = 'var(--accent-indigo)';
-                      if (probPct >= 90) {
-                        trend = 'Highly Critical';
-                        color = 'var(--accent-rose)';
-                      } else if (probPct >= 80) {
-                        trend = 'Rising Weight';
-                        color = 'var(--accent-amber)';
-                      }
-                      
-                      return (
-                        <div key={i} style={{ padding: '16px', background: 'rgba(25, 28, 44, 0.25)', border: '1px solid rgba(255, 255, 255, 0.03)', borderRadius: '12px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
-                            <div>
-                              <strong style={{ fontSize: '1rem', display: 'block', color: 'white' }}>{pred.topic_name}</strong>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                Category: {pred.parent_topic_name || 'General'}
-                              </span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.05)', color: color }}>
-                                {trend}
-                              </span>
-                              <span style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--accent-emerald)' }}>
+                    <div className="predictions-grid">
+                      {currentPredictions.map((pred, i) => {
+                        const probPct = Math.round(pred.predicted_probability * 100);
+                        let trend = 'Stable Constant';
+                        let color = 'var(--accent-indigo)';
+                        if (probPct >= 90) {
+                          trend = 'Highly Critical';
+                          color = 'var(--accent-rose)';
+                        } else if (probPct >= 80) {
+                          trend = 'Rising Weight';
+                          color = 'var(--accent-amber)';
+                        }
+                        
+                        return (
+                          <div key={i} className="prediction-card">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '8px' }}>
+                              <div style={{ textAlign: 'left' }}>
+                                <strong style={{ fontSize: '0.98rem', display: 'block', color: 'white', fontWeight: '700' }}>{pred.topic_name}</strong>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                  {pred.parent_topic_name || 'General'}
+                                </span>
+                              </div>
+                              <span style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--accent-emerald)', flexShrink: 0 }}>
                                 {probPct}%
                               </span>
                             </div>
+                            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flexGrow: 1, lineHeight: '1.48', textAlign: 'left' }}>
+                              {pred.reasoning}
+                            </p>
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                              <span className="q-badge" style={{ backgroundColor: 'rgba(255,255,255,0.03)', color: color, borderColor: 'rgba(255,255,255,0.05)', border: '1px solid' }}>
+                                {trend}
+                              </span>
+                            </div>
                           </div>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{pred.reasoning}</p>
-                        </div>
-                      );
-                    })
+                        );
+                      })}
+                    </div>
                   )}
+
+                  {/* Pagination Controls */}
+                  {totalPredPages > 1 && (
+                    <div className="pagination-container" style={{ marginTop: '24px' }}>
+                      <div className="pagination-info">
+                        Showing {indexOfFirstPred + 1} to {Math.min(indexOfLastPred, filteredPredictions.length)} of {filteredPredictions.length} predictions
+                      </div>
+
+                      <div className="pagination-buttons">
+                        <button
+                          className="btn-secondary pagination-arrow"
+                          disabled={predCurrentPage === 1}
+                          onClick={() => setPredCurrentPage(prev => prev - 1)}
+                        >
+                          Previous
+                        </button>
+
+                        {Array.from({ length: totalPredPages }).map((_, idx) => {
+                          const pageNum = idx + 1;
+                          return (
+                            <button
+                              key={`pred-page-${pageNum}`}
+                              className={`btn-secondary pagination-number ${predCurrentPage === pageNum ? 'active' : ''}`}
+                              onClick={() => setPredCurrentPage(pageNum)}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+
+                        <button
+                          className="btn-secondary pagination-arrow"
+                          disabled={predCurrentPage === totalPredPages}
+                          onClick={() => setPredCurrentPage(prev => prev + 1)}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB 3: Dynamic Study Plan */}
           {activeTab === 'studyplan' && (
@@ -1059,35 +1276,45 @@ function App() {
               </div>
 
               {/* Study Plan Customizer Inputs with Curated Weakness chips */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px', padding: '16px', background: 'rgba(25, 28, 44, 0.3)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
-                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Study Plan Duration (Days)</label>
-                    <input 
-                      type="number" 
-                      value={studyPlanDays} 
-                      onChange={(e) => setStudyPlanDays(e.target.value)}
-                      min="7"
-                      max="365"
-                      style={{ padding: '8px', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white', width: '120px' }} 
-                    />
+              {/* Study Plan Customizer Inputs with Date Pickers and Curated Weakness chips */}
+              <div className="study-plan-customizer">
+                <div className="customizer-fields-row">
+                  <div className="date-picker-group">
+                    <div className="date-picker-field">
+                      <label>Plan Start Date</label>
+                      <input 
+                        type="date" 
+                        className="date-picker-input"
+                        value={studyPlanStartDate} 
+                        onChange={(e) => setStudyPlanStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="date-picker-field">
+                      <label>Target Exam Date</label>
+                      <input 
+                        type="date" 
+                        className="date-picker-input"
+                        value={studyPlanTargetDate} 
+                        onChange={(e) => setStudyPlanTargetDate(e.target.value)}
+                      />
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1', minWidth: '200px' }}>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Target Weaknesses (Selected below, or type custom)</label>
+                  <div className="customizer-field expand">
+                    <label>Target Weaknesses (Selected below, or type custom)</label>
                     <input 
                       type="text" 
+                      className="customizer-input text-input"
                       placeholder="e.g. Cache mapping, SQL Queries" 
                       value={studyPlanWeaknesses} 
                       onChange={(e) => setStudyPlanWeaknesses(e.target.value)}
-                      style={{ padding: '8px', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white' }} 
                     />
                   </div>
                   <button 
-                    className="btn-primary" 
-                    style={{ marginTop: '16px', padding: '8px 16px', height: '38px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                    onClick={() => handleUpdateStudyPlan(studyPlanDays, studyPlanWeaknesses)}
+                    className="customizer-button" 
+                    onClick={() => handleUpdateStudyPlan(studyPlanWeaknesses)}
                   >
-                    <Calendar size={14} /> Generate Plan
+                    <Calendar size={14} />
+                    <span>Generate Plan</span>
                   </button>
                 </div>
 
@@ -1140,34 +1367,83 @@ function App() {
                 )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {studyPlan.length === 0 ? (
-                  <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    Generating custom plan... Click 'Generate Plan' to configure your custom timeline!
+              {/* Progress and Timeline Rendering */}
+              {(() => {
+                let totalTasksCount = 0;
+                let completedTasksCount = 0;
+                if (studyPlan && studyPlan.length > 0) {
+                  studyPlan.forEach((plan, idx) => {
+                    plan.tasks.forEach((_, tIdx) => {
+                      totalTasksCount++;
+                      const taskKey = `plan_${idx}_task_${tIdx}`;
+                      if (completedTasks[taskKey]) {
+                        completedTasksCount++;
+                      }
+                    });
+                  });
+                }
+                const progressPct = totalTasksCount > 0 ? Math.round((completedTasksCount / totalTasksCount) * 100) : 0;
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {studyPlan.length > 0 && (
+                      <div className="study-plan-progress-header">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>Study Progress Tracker</span>
+                          <span style={{ fontSize: '0.9rem', color: 'white', fontWeight: 'bold' }}>{completedTasksCount} of {totalTasksCount} tasks completed</span>
+                        </div>
+                        <div className="progress-bar-outer">
+                          <div className="progress-bar-inner" style={{ width: `${progressPct}%` }}></div>
+                        </div>
+                        <span className="progress-percentage-label">{progressPct}% Complete</span>
+                      </div>
+                    )}
+
+                    {studyPlan.length === 0 ? (
+                      <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        Generating custom plan... Click 'Generate Plan' to configure your custom timeline!
+                      </div>
+                    ) : (
+                      studyPlan.map((plan, i) => {
+                        const blockTasksKeys = plan.tasks.map((_, tIdx) => `plan_${i}_task_${tIdx}`);
+                        const isBlockCompleted = blockTasksKeys.length > 0 && blockTasksKeys.every(k => completedTasks[k]);
+
+                        return (
+                          <div key={i} className={`study-timeline-card ${isBlockCompleted ? 'completed' : ''}`}>
+                            <div className="timeline-badge-column">
+                              <span className="day-title">{plan.day}</span>
+                              <span className="time-estimate">{plan.time}</span>
+                            </div>
+                            <div style={{ width: '1px', backgroundColor: 'rgba(255,255,255,0.06)' }}></div>
+                            <div className="timeline-card-tasks">
+                              <h4>{plan.title}</h4>
+                              <ul className="timeline-task-list">
+                                {plan.tasks.map((task, tIdx) => {
+                                  const taskKey = `plan_${i}_task_${tIdx}`;
+                                  const isChecked = !!completedTasks[taskKey];
+                                  return (
+                                    <li key={tIdx}>
+                                      <div 
+                                        className={`interactive-task-row ${isChecked ? 'checked' : ''}`}
+                                        onClick={() => handleToggleTask(taskKey)}
+                                      >
+                                        <div className="task-checkbox-wrapper">
+                                          <Check size={11} strokeWidth={3} />
+                                        </div>
+                                        <span className="task-text">{task}</span>
+                                      </div>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
-                ) : (
-                  studyPlan.map((plan, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '20px', background: 'rgba(25, 28, 44, 0.25)', border: '1px solid rgba(255, 255, 255, 0.03)', borderRadius: '12px', padding: '20px' }}>
-                      <div style={{ textAlign: 'center', minWidth: '80px' }}>
-                        <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--accent-indigo)' }}>{plan.day}</span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{plan.time}</span>
-                      </div>
-                      <div style={{ width: '1px', backgroundColor: 'rgba(255,255,255,0.06)' }}></div>
-                      <div>
-                        <h4 style={{ fontSize: '1rem', marginBottom: '8px', color: 'white' }}>{plan.title}</h4>
-                        <ul style={{ listStyle: 'none', paddingLeft: '0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          {plan.tasks.map((task, tIdx) => (
-                            <li key={tIdx} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <CheckCircle size={14} color="var(--accent-emerald)" />
-                              {task}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+                );
+              })()}
             </div>
           )}
 
@@ -1281,68 +1557,9 @@ function App() {
                     </p>
                   </div>
                 ) : (
-                  currentQuestions.map(q => {
-                    const diffLabel = q.difficulty === 'H' ? 'Hard' : q.difficulty === 'M' ? 'Medium' : 'Easy';
-                    const parsed = parseOptions(q.question_text);
-                    const cleanText = parsed ? parsed.cleanText : q.question_text;
-                    const options = parsed ? parsed.options : [];
-
-                    return (
-                      <div key={q.id} className="question-card">
-                        {/* Card Header */}
-                        <div className="question-card-header">
-                          <div className="question-card-header-left">
-                            <span className="question-number-badge">Q.{q.question_number}</span>
-                            
-                            {/* Year Badge if showing All Papers */}
-                            {!selectedPaper && q.paper_year && (
-                              <span className="q-badge" style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                GATE CS {q.paper_year}
-                              </span>
-                            )}
-                            
-                            <div className="question-meta-badges">
-                              <span className="q-badge q-badge-type">{q.question_style}</span>
-                              <span className="q-badge q-badge-marks">{q.marks} {q.marks === 1 ? 'Mark' : 'Marks'}</span>
-                              <span className={`q-badge q-badge-difficulty-${q.difficulty}`}>{diffLabel}</span>
-                            </div>
-                          </div>
-                          {(q.parent_subject_name || q.topic_name) && (
-                            <span className="q-badge q-badge-topic">
-                              {q.parent_subject_name || q.topic_name}
-                              {q.parent_subject_name && q.topic_name && q.parent_subject_name !== q.topic_name && ` › ${q.topic_name}`}
-                            </span>
-                          )}
-                        </div>
-                        
-                        {/* Card Body */}
-                        <div className="question-card-body">
-                          <p className="question-text">{cleanText}</p>
-                          
-                          {/* MCQ/MSQ option choices rendering */}
-                          {options.length > 0 && (
-                            <div className="question-options-grid">
-                              {options.map((opt, oIdx) => (
-                                <div key={oIdx} className="question-option-card">
-                                  <span className="question-option-label">{opt.label}</span>
-                                  <span className="question-option-text">{opt.text}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {q.has_diagram && (
-                            <div className="question-diagram-placeholder">
-                              <Image size={20} />
-                              <span>This question contains a diagram or visual element</span>
-                            </div>
-                          )}
-                          
-                          <AnswerSpoiler answer={q.correct_answer} />
-                        </div>
-                      </div>
-                    );
-                  })
+                  currentQuestions.map(q => (
+                    <QuestionCard key={q.id} q={q} selectedPaper={selectedPaper} />
+                  ))
                 )}
               </div>
 
