@@ -79,7 +79,8 @@ export default function Home() {
       {!selectedCategory ? (
         <>
           <div className="flex flex-col lg:flex-row items-center justify-between gap-12 mb-16 mt-8">
-            <div className="flex-1 text-left">
+            {/* Desktop Layout */}
+            <div className="hidden lg:block flex-1 text-left">
               <h1 className="text-5xl md:text-6xl font-display font-bold mb-6 leading-tight">
                 Statistical Exam Analytics <br />
                 <span className="text-gradient">Engineered to Predict.</span>
@@ -102,7 +103,41 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            <div className="flex-shrink-0 flex justify-center lg:order-last order-first">
+
+            {/* Mobile Layout (Globe small and on the left of the hero text) */}
+            <div className="flex lg:hidden flex-col gap-4 w-full">
+              <div className="flex flex-row items-center gap-4">
+                <div className="flex-shrink-0">
+                  <GithubGlobe width={130} height={130} />
+                </div>
+                <div className="flex-grow text-left">
+                  <h1 className="text-3xl font-display font-bold leading-tight">
+                    Statistical Exam <br /> Analytics <br />
+                    <span className="text-gradient">Engineered to Predict.</span>
+                  </h1>
+                </div>
+              </div>
+              <p className="text-slate-400 text-sm leading-relaxed mt-2 text-left">
+                We analyze decadal examination papers using a mathematical regression engine combined with taxonomy classifications to engineer your ultimate path to the 100th percentile.
+              </p>
+              <div className="flex flex-wrap gap-6 mt-2 justify-start">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xl font-bold font-display bg-gradient-to-r from-indigo-300 to-purple-300 bg-clip-text text-transparent">10+</span>
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Years Tracked</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xl font-bold font-display bg-gradient-to-r from-indigo-300 to-purple-300 bg-clip-text text-transparent">94.2%</span>
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Accuracy</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xl font-bold font-display bg-gradient-to-r from-indigo-300 to-purple-300 bg-clip-text text-transparent">1,350+</span>
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Questions</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Desktop Globe */}
+            <div className="hidden lg:flex flex-shrink-0 justify-center">
               <GithubGlobe width={380} height={380} />
             </div>
           </div>
