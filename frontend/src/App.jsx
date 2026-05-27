@@ -10,6 +10,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
 import MockExam from './pages/MockExam';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 export default function App() {
   const [toasts, setToasts] = useState([]);
@@ -42,8 +43,17 @@ export default function App() {
           <Route element={<ProtectedRoute adminOnly={true} />}>
             <Route path="/internal-admin" element={<Admin addToast={addToast} />} />
           </Route>
+          
+          <Route path="/privacy" element={<PrivacyPolicy />} />
         </Routes>
       </main>
+      
+      <footer className="border-t border-white/5 py-6 mt-auto text-center text-slate-500 text-sm">
+        <div className="flex items-center justify-center gap-4">
+          <span>&copy; {new Date().getFullYear()} ExamArchitect</span>
+          <a href="/privacy" className="hover:text-indigo-400 transition-colors">Privacy Policy</a>
+        </div>
+      </footer>
     </div>
   );
 }

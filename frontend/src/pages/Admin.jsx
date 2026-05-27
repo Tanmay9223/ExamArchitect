@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Check, X, ChevronRight, BrainCircuit, RefreshCw, Database, ShieldAlert, Activity, MessageSquare } from 'lucide-react';
+import { Settings, Check, X, ChevronRight, BrainCircuit, RefreshCw, Database, ShieldAlert, Activity, MessageSquare, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const API_BASE = 'http://localhost:8000';
@@ -8,7 +8,6 @@ export default function Admin({ addToast }) {
   const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('pipeline');
   
-  // Pipeline State
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -20,6 +19,12 @@ export default function Admin({ addToast }) {
   const [selectedPaperId, setSelectedPaperId] = useState(null);
   const [regenerating, setRegenerating] = useState(false);
   const [retagging, setRetagging] = useState(false);
+
+  // Password Reset State
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [resetting, setResetting] = useState(false);
 
   // Logs & Feedbacks State
   const [logs, setLogs] = useState([]);
@@ -109,6 +114,42 @@ export default function Admin({ addToast }) {
     }
   }, [activeTab]);
 
+  const handlePasswordReset = (e) => {
+    e.preventDefault();
+    setResetError('');
+    if (newPassword !== confirmPassword) {
+      setResetError('Passwords do not match');
+      return;
+    }
+    setResetting(true);
+    const token = localStorage.getItem('token');
+    fetch(`${API_BASE}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ new_password: newPassword, confirm_password: confirmPassword })
+    })
+      .then(async res => {
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Failed to reset password');
+        }
+        return res.json();
+      })
+      .then(() => {
+        setResetting(false);
+        if (addToast) addToast('Password reset successful!', 'success');
+        // Force a page reload to update currentUser context
+        window.location.reload();
+      })
+      .catch(err => {
+        setResetting(false);
+        setResetError(err.message);
+      });
+  };
+
   const handleApprove = () => {
     if (!selectedPaperId) return;
     const approvalPayload = {
@@ -153,6 +194,78 @@ export default function Admin({ addToast }) {
   };
 
   const currentQ = questions[currentIndex] || {};
+
+  const parseUserAgent = (ua) => {
+    if (!ua) return 'Unknown Device';
+    let browser = 'Unknown';
+    let os = 'Unknown OS';
+    
+    if (ua.includes('Firefox')) browser = 'Firefox';
+    else if (ua.includes('Edg')) browser = 'Edge';
+    else if (ua.includes('Chrome')) browser = 'Chrome';
+    else if (ua.includes('Safari')) browser = 'Safari';
+    
+    if (ua.includes('Win')) os = 'Windows';
+    else if (ua.includes('Mac')) os = 'Mac OS';
+    else if (ua.includes('Linux')) os = 'Linux';
+    else if (ua.includes('Android')) os = 'Android';
+    else if (ua.includes('like Mac OS X')) os = 'iOS';
+    
+    return `${browser} on ${os}`;
+  };
+
+  if (!currentUser || currentUser.role !== 'admin') return null;
+
+  if (currentUser?.requires_password_change) {
+    return (
+      <div className="container mx-auto px-4 py-8 animate-fade-in flex justify-center items-center min-h-[70vh]">
+        <div className="glass-panel p-8 w-full max-w-md">
+          <div className="flex flex-col items-center mb-6">
+            <ShieldAlert size={48} className="text-amber-500 mb-4" />
+            <h2 className="text-2xl font-bold font-display text-center">Security Requirement</h2>
+            <p className="text-sm text-slate-400 mt-2 text-center">For security reasons, you must change your default password before accessing the admin console.</p>
+          </div>
+          
+          {resetError && (
+            <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 p-3 rounded-lg text-sm mb-6 flex items-center gap-2">
+              <AlertTriangle size={16} /> {resetError}
+            </div>
+          )}
+
+          <form onSubmit={handlePasswordReset} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">New Password</label>
+              <input 
+                type="password" 
+                required
+                className="w-full bg-[#121420]/80 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Confirm New Password</label>
+              <input 
+                type="password" 
+                required
+                className="w-full bg-[#121420]/80 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </div>
+            
+            <button 
+              type="submit" 
+              disabled={resetting}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-lg font-semibold flex justify-center items-center gap-2 transition-colors mt-6"
+            >
+              {resetting ? <RefreshCw size={18} className="animate-spin" /> : <><Check size={18} /> Update Password</>}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 animate-fade-in">
@@ -327,9 +440,10 @@ export default function Admin({ addToast }) {
               <thead className="bg-white/5 text-slate-300">
                 <tr>
                   <th className="p-3 rounded-tl-lg">ID</th>
-                  <th className="p-3">User ID</th>
+                  <th className="p-3">User Email</th>
                   <th className="p-3">Action</th>
-                  <th className="p-3">Details</th>
+                  <th className="p-3">Device & OS</th>
+                  <th className="p-3">IP Address</th>
                   <th className="p-3 rounded-tr-lg">Timestamp</th>
                 </tr>
               </thead>
@@ -337,13 +451,14 @@ export default function Admin({ addToast }) {
                 {logs.length > 0 ? logs.map(l => (
                   <tr key={l.id} className="border-b border-white/5 hover:bg-white/[0.02]">
                     <td className="p-3 text-slate-400">{l.id}</td>
-                    <td className="p-3 text-indigo-400">User #{l.user_id}</td>
-                    <td className="p-3"><span className="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-xs">{l.action_type}</span></td>
-                    <td className="p-3 text-slate-300 max-w-xs truncate">{l.details}</td>
-                    <td className="p-3 text-slate-400">{new Date(l.timestamp).toLocaleString()}</td>
+                    <td className="p-3 text-indigo-400">{l.user_email}</td>
+                    <td className="p-3"><span className="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-xs">{l.action}</span></td>
+                    <td className="p-3 text-slate-300 max-w-xs truncate">{parseUserAgent(l.user_agent)}</td>
+                    <td className="p-3 text-slate-300 max-w-xs truncate">{l.ip_address}</td>
+                    <td className="p-3 text-slate-400">{new Date(l.created_at).toLocaleString()}</td>
                   </tr>
                 )) : (
-                  <tr><td colSpan="5" className="p-6 text-center text-slate-500">No logs found.</td></tr>
+                  <tr><td colSpan="6" className="p-6 text-center text-slate-500">No logs found.</td></tr>
                 )}
               </tbody>
             </table>
