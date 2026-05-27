@@ -1,20 +1,27 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
 
-:root {
-  --bg-primary: #030408;
-  --bg-secondary: #080a14;
-  --bg-tertiary: #101222;
+@theme {
+  --color-bg-primary: #0a0b10;
+  --color-bg-secondary: #121420;
+  --color-bg-tertiary: #191c2c;
   
+  --color-accent-indigo: #6366f1;
+  --color-accent-purple: #a855f7;
+  --color-accent-emerald: #10b981;
+  --color-accent-rose: #f43f5e;
+  --color-accent-amber: #f59e0b;
+  --color-accent-cyan: #06b6d4;
+
   --accent-indigo: #6366f1;
   --accent-purple: #a855f7;
   --accent-emerald: #10b981;
   --accent-rose: #f43f5e;
   --accent-amber: #f59e0b;
   --accent-cyan: #06b6d4;
-  
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
   
   --glass-bg: rgba(8, 10, 20, 0.55);
   --glass-border: rgba(255, 255, 255, 0.08);
@@ -29,22 +36,19 @@
   --border-radius-sm: 8px;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+@layer base {
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
-body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  min-height: 100vh;
-  overflow-x: hidden;
-  position: relative;
-}
+  body {
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
 
 /* Abstract backgrounds - set to fixed so they don't trigger repaint cycles on scroll */
 body::before {
@@ -329,13 +333,47 @@ button {
     padding: 16px 12px;
   }
 }
-
-/* Subtle keyframe animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.4s ease-out forwards;
+@layer components {
+  .glass-panel {
+    @apply bg-[#121420]/70 backdrop-blur-md border border-white/5 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] rounded-2xl transition-all duration-300;
+  }
+  
+  .glass-panel:hover {
+    @apply border-white/10 shadow-[0_12px_40px_0_rgba(0,0,0,0.5)];
+  }
+
+  .glass-card {
+    @apply bg-[#191c2c]/45 border border-white/5 rounded-xl transition-all duration-300 cursor-pointer overflow-hidden;
+  }
+
+  .glass-card:hover {
+    @apply bg-[#191c2c]/70 -translate-y-1 border-indigo-500/30 shadow-[0_8px_24px_rgba(99,102,241,0.15)];
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-br from-indigo-500 to-purple-500 text-white px-6 py-3 rounded-lg font-semibold shadow-[0_4px_14px_rgba(99,102,241,0.4)] transition-all duration-300;
+  }
+
+  .btn-primary:hover {
+    @apply -translate-y-0.5 shadow-[0_6px_20px_rgba(99,102,241,0.6)];
+  }
+
+  .btn-primary:active {
+    @apply translate-y-0;
+  }
+
+  .btn-secondary {
+    @apply bg-white/5 border border-white/10 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300;
+  }
+
+  .btn-secondary:hover {
+    @apply bg-white/10 border-white/20;
+  }
+
+  .text-gradient {
+    @apply bg-gradient-to-br from-indigo-400 to-purple-400 text-transparent bg-clip-text;
+  }
 }
+

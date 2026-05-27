@@ -1,5 +1,6 @@
 import os
 import re
+# pyrefly: ignore [missing-import]
 import fitz  # PyMuPDF
 from pathlib import Path
 from typing import List, Dict, Optional

@@ -167,7 +167,7 @@ exam_categories (id, name, icon, description, color)
 - **Modular Ingestion**: Built decoupled from backend so we can swap to web scraping (Puppeteer) later if needed.
 - Hierarchical LLM topic tagger (`subject → chapter → topic`) with fixed taxonomy.
 - Admin Review Dashboard (Human-in-the-loop to verify JSON outputs before DB insertion).
-- Seed 10 years of GATE CS papers (2015-2025)
+- Seed 21 years of GATE CS papers (2005-2025)
 - Compute `topic_year_stats` aggregates
 
 ### Phase 3 — Analytics & Visualization (Week 3)

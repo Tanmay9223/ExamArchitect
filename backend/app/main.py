@@ -1,14 +1,22 @@
 import os
 import json
 import random
-from fastapi import FastAPI, Depends, HTTPException
+# pyrefly: ignore [missing-import]
+from fastapi import FastAPI, Depends, HTTPException, status
+# pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
+# pyrefly: ignore [missing-import]
+from fastapi.security import OAuth2PasswordRequestForm
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
+from datetime import timedelta
 
 from .database import get_db, engine, Base
-from .models import ExamCategory, Exam, Topic, Paper, Question, TopicYearStat, Prediction
+from .models import ExamCategory, Exam, Topic, Paper, Question, TopicYearStat, Prediction, User, UserGeneratedExam, ActivityLog, QuestionFeedback
 from .init_db import seed_database
+from .auth import get_password_hash, verify_password, create_access_token, get_current_user, get_current_admin, ACCESS_TOKEN_EXPIRE_MINUTES
+from .schemas_auth import UserCreate, UserResponse, Token, QuestionFeedbackCreate, UserGeneratedExamCreate
 
 app = FastAPI(
     title="ExamArchitect API",
@@ -44,6 +52,54 @@ def make_search_pattern(search_query: str) -> str:
     for char in ["'", '"', '’', '‘', '”', '“']:
         query = query.replace(char, "%")
     return f"%{query}%"
+
+def log_activity(db: Session, user_id: int, action: str, ip_address: str = None, user_agent: str = None):
+    log = ActivityLog(user_id=user_id, action=action, ip_address=ip_address, user_agent=user_agent)
+    db.add(log)
+    db.commit()
+
+# --- Auth Endpoints ---
+@app.post("/api/auth/register", response_model=UserResponse)
+def register_user(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_password = get_password_hash(user.password)
+    new_user = User(name=user.name, email=user.email, password_hash=hashed_password, role="user")
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    log_activity(db, new_user.id, "REGISTER")
+    return new_user
+
+@app.post("/api/auth/login", response_model=Token)
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.password_hash):
+        if user:
+            log_activity(db, user.id, "LOGIN_FAILED")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email, "role": user.role}, expires_delta=access_token_expires
+    )
+    
+    log_activity(db, user.id, "LOGIN_SUCCESS")
+    if user.role == "admin":
+        log_activity(db, user.id, "ADMIN_LOGIN")
+        
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/api/auth/profile", response_model=UserResponse)
+def read_users_me(current_user: User = Depends(get_current_user)):
+    return current_user
 
 # --- Category & Exam Endpoints ---
 
@@ -336,6 +392,7 @@ def get_global_questions(topic_id: int = None, subject_id: int = None, exam_id: 
 
 # --- Phase 2 Ingestion & Staging Endpoints ---
 
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel
 from pathlib import Path
 from .pdf_parser import PDFParser, IngestSimulator
@@ -515,7 +572,7 @@ def generate_exam_predictions(exam_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/exams/{exam_id}/study-plan", response_model=List[Dict[str, Any]])
-def get_custom_study_plan(exam_id: int, request_data: StudyPlanRequest, db: Session = Depends(get_db)):
+def get_custom_study_plan(exam_id: int, request_data: StudyPlanRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     engine = AnalyticsEngine(db)
     try:
         plan = engine.generate_dynamic_study_plan(
@@ -540,3 +597,104 @@ def get_default_study_plan(exam_id: int, total_days: int = 30, db: Session = Dep
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/user-exams", response_model=Dict[str, Any])
+def save_user_exam(exam_data: UserGeneratedExamCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    new_exam = UserGeneratedExam(
+        user_id=current_user.id,
+        title=exam_data.title,
+        topics=exam_data.topics,
+        difficulty=exam_data.difficulty,
+        questions_json=exam_data.questions_json
+    )
+    db.add(new_exam)
+    db.commit()
+    db.refresh(new_exam)
+    log_activity(db, current_user.id, "EXAM_CREATED")
+    return {"status": "success", "exam_id": new_exam.id}
+
+@app.get("/api/user-exams", response_model=List[Dict[str, Any]])
+def get_user_exams(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    exams = db.query(UserGeneratedExam).filter(UserGeneratedExam.user_id == current_user.id).order_by(UserGeneratedExam.created_at.desc()).all()
+    result = []
+    for ex in exams:
+        result.append({
+            "id": ex.id,
+            "title": ex.title,
+            "topics": ex.topics,
+            "difficulty": ex.difficulty,
+            "created_at": ex.created_at
+        })
+    return result
+
+@app.get("/api/user-exams/{exam_id}", response_model=Dict[str, Any])
+def get_user_exam(exam_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    exam = db.query(UserGeneratedExam).filter(UserGeneratedExam.id == exam_id, UserGeneratedExam.user_id == current_user.id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    return {
+        "id": exam.id,
+        "title": exam.title,
+        "topics": exam.topics,
+        "difficulty": exam.difficulty,
+        "questions_json": exam.questions_json,
+        "created_at": exam.created_at
+    }
+
+@app.delete("/api/user-exams/{exam_id}", response_model=Dict[str, Any])
+def delete_user_exam(exam_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    exam = db.query(UserGeneratedExam).filter(UserGeneratedExam.id == exam_id, UserGeneratedExam.user_id == current_user.id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    db.delete(exam)
+    db.commit()
+    log_activity(db, current_user.id, "EXAM_DELETED")
+    return {"status": "success"}
+
+@app.post("/api/questions/{question_id}/feedback", response_model=Dict[str, Any])
+def submit_question_feedback(question_id: int, feedback: QuestionFeedbackCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    new_feedback = QuestionFeedback(
+        question_id=question_id,
+        user_id=current_user.id,
+        feedback_type=feedback.feedback_type,
+        comments=feedback.comments
+    )
+    db.add(new_feedback)
+    db.commit()
+    return {"status": "success"}
+
+# --- Admin Endpoints ---
+@app.get("/api/admin/logs", response_model=List[Dict[str, Any]])
+def get_activity_logs(limit: int = 100, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    logs = db.query(ActivityLog).order_by(ActivityLog.created_at.desc()).limit(limit).all()
+    result = []
+    for log in logs:
+        result.append({
+            "id": log.id,
+            "user_email": log.user.email if log.user else "Unknown",
+            "action": log.action,
+            "ip_address": log.ip_address,
+            "created_at": log.created_at
+        })
+    return result
+
+@app.get("/api/admin/feedbacks", response_model=List[Dict[str, Any]])
+def get_feedbacks(db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    # pyrefly: ignore [missing-import]
+    from sqlalchemy import func
+    # Group feedbacks by question_id to count them
+    grouped = db.query(
+        QuestionFeedback.question_id,
+        func.count(QuestionFeedback.id).label("feedback_count"),
+        func.group_concat(QuestionFeedback.feedback_type).label("types")
+    ).group_by(QuestionFeedback.question_id).all()
+    
+    result = []
+    for g in grouped:
+        q = db.query(Question).filter(Question.id == g.question_id).first()
+        result.append({
+            "question_id": g.question_id,
+            "question_text": q.question_text if q else "Deleted",
+            "feedback_count": g.feedback_count,
+            "types": g.types
+        })
+    return result
