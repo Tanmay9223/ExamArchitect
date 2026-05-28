@@ -68,7 +68,7 @@ export default function GithubGlobe({ width = 450, height = 450 }) {
       { startLat: 40.7128, startLng: -74.0060, endLat: 12.9716, endLng: 77.5946, color: '#818cf8', altitude: 0.3 },
       { startLat: 51.5074, startLng: -0.1278, endLat: 35.6762, endLng: 139.6503, color: '#ec4899', altitude: 0.28 },
       { startLat: 12.9716, startLng: 77.5946, endLat: -33.8688, endLng: 151.2093, color: '#06b6d4', altitude: 0.22 },
-      { startLat: 35.6762, startLng: 139.6503, endLat: 37.7749, startLng: -122.4194, color: '#f59e0b', altitude: 0.32 }
+      { startLat: 35.6762, startLng: 139.6503, endLat: 37.7749, endLng: -122.4194, color: '#f59e0b', altitude: 0.32 }
     ];
 
     // Configure points (markers)
