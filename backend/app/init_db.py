@@ -1,5 +1,5 @@
 from .database import engine, SessionLocal, Base
-from .models import ExamCategory, Exam, Topic, SyllabusVersion, SyllabusVersionTopic
+from .models import ExamCategory, Exam, Topic, SyllabusVersion, SyllabusVersionTopic, User
 
 # Subjects and their subtopics for GATE CS
 GATE_CS_TAXONOMY = {
@@ -81,6 +81,22 @@ def seed_database():
     db = SessionLocal()
     
     try:
+        # 0. Seed Admin User
+        admin_user = db.query(User).filter_by(email="admin@examarchitect.com").first()
+        if not admin_user:
+            from .auth import get_password_hash
+            hashed_pw = get_password_hash("AdminPassword123!")
+            admin_user = User(
+                name="System Admin",
+                email="admin@examarchitect.com",
+                password_hash=hashed_pw,
+                role="admin",
+                requires_password_change=True
+            )
+            db.add(admin_user)
+            db.commit()
+            db.refresh(admin_user)
+
         # 1. Seed Categories
         engineering = db.query(ExamCategory).filter_by(name="Engineering").first()
         if not engineering:

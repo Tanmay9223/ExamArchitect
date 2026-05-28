@@ -1,5 +1,8 @@
+# pyrefly: ignore [missing-import]
 from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Text, DateTime, JSON
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
+# pyrefly: ignore [missing-import]
 from sqlalchemy.sql import func
 from .database import Base
 
@@ -149,3 +152,60 @@ class Prediction(Base):
 
     exam = relationship("Exam", back_populates="predictions")
     topic = relationship("Topic", back_populates="predictions")
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    role = Column(String, default="user") # "user" or "admin"
+    requires_password_change = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    generated_exams = relationship("UserGeneratedExam", back_populates="user", cascade="all, delete-orphan")
+    feedbacks = relationship("QuestionFeedback", back_populates="user", cascade="all, delete-orphan")
+    activity_logs = relationship("ActivityLog", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserGeneratedExam(Base):
+    __tablename__ = "user_generated_exams"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String, nullable=False)
+    topics = Column(String, nullable=True) # Comma-separated topics
+    difficulty = Column(String, nullable=True)
+    questions_json = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="generated_exams")
+
+
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Optional for guest actions
+    action = Column(String, nullable=False)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="activity_logs")
+
+
+class QuestionFeedback(Base):
+    __tablename__ = "question_feedbacks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    question_id = Column(Integer, ForeignKey("questions.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    feedback_type = Column(String, nullable=False) # e.g., "incorrect_answer", "incorrect_topic"
+    comments = Column(Text, nullable=True)
+    status = Column(String, default="pending") # "pending", "resolved", "rejected"
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    question = relationship("Question")
+    user = relationship("User", back_populates="feedbacks")

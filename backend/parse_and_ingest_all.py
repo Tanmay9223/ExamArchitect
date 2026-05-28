@@ -8,7 +8,7 @@ import os
 import sys
 import re
 import random
-import subprocess
+# pyrefly: ignore [missing-import]
 import fitz
 from pathlib import Path
 
