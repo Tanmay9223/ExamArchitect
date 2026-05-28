@@ -43,7 +43,7 @@ PDF_MAPPING = {
     "NEET-UG-2018.pdf": {"year": 2018, "session": "1", "total_q": 180, "total_marks": 720.0},
     "NEET-UG-2019.pdf": {"year": 2019, "session": "1", "total_q": 180, "total_marks": 720.0},
     "NEET-UG-2020.pdf": {"year": 2020, "session": "1", "total_q": 180, "total_marks": 720.0},
-    "NEET-UG-2021.pdf": {"year": 2021, "session": "1", "total_q": 180, "total_marks": 720.0},
+    "NEET-UG-2021.pdf": {"year": 2021, "session": "1", "total_q": 200, "total_marks": 720.0},
     "NEET-UG-2022.pdf": {"year": 2022, "session": "1", "total_q": 200, "total_marks": 720.0},
     "NEET-UG-2023.pdf": {"year": 2023, "session": "1", "total_q": 200, "total_marks": 720.0},
     "NEET-UG-2024.pdf": {"year": 2024, "session": "1", "total_q": 200, "total_marks": 720.0},
@@ -184,7 +184,7 @@ SECTION_BOUNDARIES = {
     2018: (1, 46, 91, 136),
     2019: (1, 46, 91, 136),
     2020: (1, 46, 91, 136),
-    2021: (1, 46, 91, 136),
+    2021: (1, 51, 101, 151),  # 200-Q format introduced
     2022: (1, 51, 101, 151),  # 200-Q format
     2023: (1, 51, 101, 151),
     2024: (1, 51, 101, 151),
@@ -216,11 +216,6 @@ def get_subject_for_q_num(q_num: int, year: int) -> str:
     """Return subject based on question number ranges for each year."""
     bounds = SECTION_BOUNDARIES.get(year, (1, 46, 91, 136))
     p_start, c_start, bo_start, zo_start = bounds
-    if year >= 2022 and year <= 2024:
-        # 200-Q paper: 1-50 physics, 51-100 chem, 101-150 botany, 151-200 zoology
-        total_q = 200
-    else:
-        total_q = 180
 
     if p_start <= q_num < c_start:
         return "Physics"
@@ -349,41 +344,49 @@ def parse_answer_key_verbose(ans_text: str) -> dict:
 
 def extract_answer_key(full_text: str, year: int) -> dict:
     """
-    Locate and parse the answer key section from a NEET PDF.
+    Locate and parse ALL answer key sections from a NEET PDF.
+    Some PDFs (e.g. 2025) have separate per-subject answer key sections.
+    We aggregate answers from every section found.
+
     Returns either:
       - {q_num: 'A'} for old/verbose style
       - {q_num: {'answer': 'A', 'topic': '...', 'chapter': '...'}} for new table style
     """
-    # Find the answer key section
-    ans_pos = -1
-    for marker in ['ANSWER KEY', 'Answer Key', 'ANSWERS WITH EXPLANATIONS',
-                   'ANSWERS', 'answer key', 'answers']:
-        pos = full_text.find(marker)
-        if pos != -1:
-            ans_pos = pos
-            break
+    # Collect start positions of every answer-key section
+    markers = ['ANSWER KEY', 'Answer Key', 'ANSWERS WITH EXPLANATIONS', 'ANSWERS']
+    all_positions = []
+    for marker in markers:
+        start = 0
+        while True:
+            pos = full_text.find(marker, start)
+            if pos == -1:
+                break
+            all_positions.append(pos)
+            start = pos + 1
 
-    if ans_pos == -1:
+    if not all_positions:
         return {}
 
-    ans_text = full_text[ans_pos:ans_pos + 25000]
+    all_positions = sorted(set(all_positions))
+    aggregated = {}
 
-    if year >= 2024:
-        # Rich structured table with topic & chapter
-        result = parse_answer_key_new_table(ans_text)
-        if result:
-            return result
-        # Fallback
-        return parse_answer_key_old(ans_text)
-    elif year >= 2022:
-        # Verbose "Option (N) is correct" format
-        result = parse_answer_key_verbose(ans_text)
-        if result:
-            return result
-        return parse_answer_key_old(ans_text)
-    else:
-        # Classic tabular (a)/(b)/(c)/(d) format
-        return parse_answer_key_old(ans_text)
+    for ans_pos in all_positions:
+        ans_text = full_text[ans_pos: ans_pos + 25000]
+
+        if year >= 2024:
+            result = parse_answer_key_new_table(ans_text)
+            if not result:
+                result = parse_answer_key_old(ans_text)
+        elif year >= 2022:
+            result = parse_answer_key_verbose(ans_text)
+            if not result:
+                result = parse_answer_key_old(ans_text)
+        else:
+            result = parse_answer_key_old(ans_text)
+
+        aggregated.update(result)
+
+    return aggregated
 
 
 # ---------------------------------------------------------------------------
@@ -393,46 +396,51 @@ def extract_questions(full_text: str, year: int) -> list:
     """
     Extract raw question blocks from NEET PDF text.
     Returns list of {'q_num': int, 'text': str}
-    """
-    # Find the question section (before the answer key)
-    question_section = full_text
-    for marker in ['ANSWER KEY', 'Answer Key', 'ANSWERS WITH EXPLANATIONS', 'ANSWERS']:
-        pos = full_text.find(marker)
-        if pos != -1:
-            question_section = full_text[:pos]
-            break
 
+    Strategy:
+    - 2024/2025 use "Q. N." markers — safe to scan the full document because
+      the answer key sections use plain integers, not "Q. N." markers.
+    - 2013–2023 use "N.\t" markers — cut off before the first answer key section
+      to avoid capturing numbered answer explanations.
+    """
     questions = []
 
-    # 2025: "Q. 1.\t" format
+    # ── 2024 / 2025: "Q. N." format ─────────────────────────────────────────
     if year >= 2024:
-        # Pattern: "Q. N.\tText" or "Q. N. Text"
+        # Scan the FULL text — answer keys never use "Q. N." so there's no
+        # risk of capturing answer-key lines with this pattern.
         pattern = re.compile(
-            r'(?:^|\n)\s*Q\.\s*(\d{1,3})\.\s*(.*?)(?=\n\s*Q\.\s*\d{1,3}\.\s*|\Z)',
+            r'(?:^|\n)\s*Q\.\s*(\d{1,3})\.(.*?)(?=\n\s*Q\.\s*\d{1,3}\.|\Z)',
             re.DOTALL | re.MULTILINE
         )
-        matches = list(pattern.finditer(question_section))
-        for m in matches:
+        seen = set()
+        for m in pattern.finditer(full_text):
             q_num = int(m.group(1))
-            if 1 <= q_num <= 200:
+            if 1 <= q_num <= 200 and q_num not in seen:
                 q_text = ("Q. " + str(q_num) + ". " + m.group(2)).strip()[:2000]
-                questions.append({"q_num": q_num, "text": q_text})
+                # Skip very short matches (stray option lines, headers)
+                if len(q_text.split()) >= 5:
+                    questions.append({"q_num": q_num, "text": q_text})
+                    seen.add(q_num)
         if len(questions) >= 50:
             return questions
 
-    # 2013–2023: "N.\t" at line start
-    # Use the reliable numbered-line pattern
-    # Avoid matching option numbers like "(a) 14%"
-    # Pattern matches: line starting with 1-200 followed by "." and whitespace/tab
+    # ── 2013–2023: "N.\t" format ─────────────────────────────────────────────
+    # Bound the search to the region before the first answer key marker.
+    ans_pos = len(full_text)
+    for marker in ['ANSWER KEY', 'Answer Key', 'ANSWERS WITH EXPLANATIONS', 'ANSWERS']:
+        pos = full_text.find(marker)
+        if pos != -1 and pos < ans_pos:
+            ans_pos = pos
+    question_section = full_text[:ans_pos]
+
+    # Primary: requires a literal tab after the question number
     pattern = re.compile(
         r'(?:^|\n)\s*(\d{1,3})\.\s{0,3}\t(.*?)(?=\n\s*\d{1,3}\.\s{0,3}\t|\Z)',
         re.DOTALL | re.MULTILINE
     )
-    matches = list(pattern.finditer(question_section))
-
-    # Filter to valid question numbers (sequential, 1-200)
     seen = set()
-    for m in matches:
+    for m in pattern.finditer(question_section):
         q_num = int(m.group(1))
         if 1 <= q_num <= 200 and q_num not in seen:
             q_text = (str(q_num) + ". " + m.group(2)).strip()[:2000]
@@ -442,25 +450,21 @@ def extract_questions(full_text: str, year: int) -> list:
     if len(questions) >= 50:
         return questions
 
-    # Fallback: simpler numbered line pattern without requiring tab
+    # Fallback: no tab required
     pattern2 = re.compile(
         r'(?:^|\n)\s*(\d{1,3})\.\s+((?:.+?)(?:\n(?!\s*\d{1,3}\.\s).+?){0,8})',
         re.MULTILINE
     )
-    matches2 = list(pattern2.finditer(question_section))
     seen2 = set()
     fallback_qs = []
-    for m in matches2:
+    for m in pattern2.finditer(question_section):
         q_num = int(m.group(1))
         if 1 <= q_num <= 200 and q_num not in seen2:
             q_text = (str(q_num) + ". " + m.group(2)).strip()[:2000]
             fallback_qs.append({"q_num": q_num, "text": q_text})
             seen2.add(q_num)
 
-    if len(fallback_qs) > len(questions):
-        return fallback_qs
-
-    return questions
+    return fallback_qs if len(fallback_qs) > len(questions) else questions
 
 
 # ---------------------------------------------------------------------------
