@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { BrainCircuit, AlertCircle, SaveAll, CheckCircle, RefreshCw, XCircle, Trash2, BookOpen } from 'lucide-react';
 import QuestionCard, { checkNatCorrectness } from '../components/QuestionCard';
@@ -7,7 +7,7 @@ import WeaknessChatbot from '../components/WeaknessChatbot';
 import { API_BASE } from '../config';
 
 export default function MockExam({ addToast }) {
-  const { currentUser } = useAuth();
+  const { currentUser, token } = useAuth();
   const [exams, setExams] = useState([]);
   const [selectedExamId, setSelectedExamId] = useState('');
   const [difficulty, setDifficulty] = useState('M');
@@ -34,32 +34,40 @@ export default function MockExam({ addToast }) {
     setMentorChatOpen(true);
   };
 
+  const examsFetchRef = useRef(null);
   useEffect(() => {
-    fetch(`${API_BASE}/api/exams`)
-      .then(res => res.json())
+    if (examsFetchRef.current) examsFetchRef.current.abort();
+    examsFetchRef.current = new AbortController();
+    fetch(`${API_BASE}/api/exams`, { signal: examsFetchRef.current.signal })
+      .then(res => {
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        return res.json();
+      })
       .then(data => {
         setExams(data);
         if (data.length > 0) setSelectedExamId(data[0].id);
       })
-      .catch(console.error);
-  }, []);
+      .catch(err => {
+        if (err.name === 'AbortError') return;
+        console.error('[MockExam] fetchExams:', err.message);
+        addToast?.('Failed to load exams.', 'error');
+      });
+    return () => examsFetchRef.current?.abort();
+  }, [addToast]);
 
   const fetchSavedExams = async () => {
     if (!currentUser) return;
     setLoadingSaved(true);
-    const token = localStorage.getItem('token');
     try {
       const res = await fetch(`${API_BASE}/api/user-exams`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { ...(token && { Authorization: `Bearer ${token}` }) },
       });
-      if (res.ok) {
-        const data = await res.json();
-        setSavedExams(data);
-      }
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      const data = await res.json();
+      setSavedExams(data);
     } catch (err) {
-      console.error('Failed to fetch saved exams', err);
+      console.error('[MockExam] fetchSavedExams:', err.message);
+      addToast?.('Failed to load saved exams.', 'error');
     } finally {
       setLoadingSaved(false);
     }
@@ -85,11 +93,15 @@ export default function MockExam({ addToast }) {
 
     try {
       const res = await fetch(`${API_BASE}/api/questions?exam_id=${selectedExamId}`);
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.detail || `Server error: ${res.status}`);
+      }
       const data = await res.json();
-      
+
       const shuffled = [...data].sort(() => 0.5 - Math.random());
       const selected = shuffled.slice(0, 10);
-      
+
       const totalMarks = selected.reduce((acc, q) => acc + (q.marks || 1), 0);
       setTotalPossibleMarks(totalMarks);
 
@@ -100,14 +112,13 @@ export default function MockExam({ addToast }) {
       setUserAnswers(initialAnswers);
 
       const targetExam = exams.find(e => String(e.id) === String(selectedExamId));
-      const newMock = {
+      setMockExam({
         title: `AI Mock - ${targetExam ? targetExam.name : 'Exam'} (${difficulty === 'E' ? 'Easy' : difficulty === 'H' ? 'Hard' : 'Medium'})`,
-        questions: selected
-      };
-      
-      setMockExam(newMock);
+        questions: selected,
+      });
     } catch (err) {
-      console.error(err);
+      console.error('[MockExam] handleGenerate:', err.message);
+      addToast?.(err.message || 'Failed to generate mock exam.', 'error');
     } finally {
       setLoading(false);
     }
@@ -119,38 +130,33 @@ export default function MockExam({ addToast }) {
     setUserAnswers({});
     setExamSubmitted(false);
     setScore(0);
-    const token = localStorage.getItem('token');
     try {
       const res = await fetch(`${API_BASE}/api/user-exams/${examId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { ...(token && { Authorization: `Bearer ${token}` }) },
       });
-      if (res.ok) {
-        const data = await res.json();
-        // questions_json is loaded directly
-        const questionsList = Array.isArray(data.questions_json) 
-          ? data.questions_json 
-          : (typeof data.questions_json === 'string' ? JSON.parse(data.questions_json) : []);
-        
-        const totalMarks = questionsList.reduce((acc, q) => acc + (q.marks || 1), 0);
-        setTotalPossibleMarks(totalMarks);
-
-        const initialAnswers = {};
-        questionsList.forEach(q => {
-          initialAnswers[q.id] = q.question_style === 'MSQ' ? [] : '';
-        });
-        setUserAnswers(initialAnswers);
-
-        setMockExam({
-          id: data.id,
-          title: data.title,
-          questions: questionsList
-        });
-        window.scrollTo({ top: 400, behavior: 'smooth' });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.detail || `Server error: ${res.status}`);
       }
+      const data = await res.json();
+      const questionsList = Array.isArray(data.questions_json)
+        ? data.questions_json
+        : (typeof data.questions_json === 'string' ? JSON.parse(data.questions_json) : []);
+
+      const totalMarks = questionsList.reduce((acc, q) => acc + (q.marks || 1), 0);
+      setTotalPossibleMarks(totalMarks);
+
+      const initialAnswers = {};
+      questionsList.forEach(q => {
+        initialAnswers[q.id] = q.question_style === 'MSQ' ? [] : '';
+      });
+      setUserAnswers(initialAnswers);
+
+      setMockExam({ id: data.id, title: data.title, questions: questionsList });
+      window.scrollTo({ top: 400, behavior: 'smooth' });
     } catch (err) {
-      console.error(err);
+      console.error('[MockExam] handleLoadSavedExam:', err.message);
+      addToast?.(err.message || 'Failed to load saved exam.', 'error');
     } finally {
       setLoading(false);
     }
@@ -158,23 +164,21 @@ export default function MockExam({ addToast }) {
 
   const handleDeleteSavedExam = async (e, examId) => {
     e.stopPropagation();
-    if (!window.confirm("Are you sure you want to delete this saved exam?")) return;
-    const token = localStorage.getItem('token');
+    if (!window.confirm('Are you sure you want to delete this saved exam?')) return;
     try {
       const res = await fetch(`${API_BASE}/api/user-exams/${examId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { ...(token && { Authorization: `Bearer ${token}` }) },
       });
-      if (res.ok) {
-        fetchSavedExams();
-        if (mockExam && mockExam.id === examId) {
-          setMockExam(null);
-        }
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.detail || `Server error: ${res.status}`);
       }
+      fetchSavedExams();
+      if (mockExam && mockExam.id === examId) setMockExam(null);
     } catch (err) {
-      console.error(err);
+      console.error('[MockExam] handleDeleteSavedExam:', err.message);
+      addToast?.(err.message || 'Failed to delete exam.', 'error');
     }
   };
 
@@ -221,31 +225,33 @@ export default function MockExam({ addToast }) {
   const handleSave = async () => {
     if (!currentUser) return;
     if (!mockExam || mockExam.questions.length === 0) return;
-    
+
     setSaveStatus('saving');
-    const token = localStorage.getItem('token');
     try {
       const res = await fetch(`${API_BASE}/api/user-exams`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          ...(token && { Authorization: `Bearer ${token}` }),
         },
+        // Only send fields the API requires
         body: JSON.stringify({
           title: mockExam.title,
           topics: 'AI Generated Mock',
           difficulty: difficulty === 'E' ? 'Easy' : difficulty === 'H' ? 'Hard' : 'Medium',
-          questions_json: mockExam.questions
-        })
+          questions_json: mockExam.questions,
+        }),
       });
-      if (res.ok) {
-        setSaveStatus('saved');
-        fetchSavedExams();
-      } else {
-        setSaveStatus('error');
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.detail || `Server error: ${res.status}`);
       }
+      setSaveStatus('saved');
+      fetchSavedExams();
     } catch (err) {
+      console.error('[MockExam] handleSave:', err.message);
       setSaveStatus('error');
+      addToast?.(err.message || 'Failed to save exam.', 'error');
     }
   };
 

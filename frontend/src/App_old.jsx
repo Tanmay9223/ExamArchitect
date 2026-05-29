@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { 
-  Cpu, 
-  Activity, 
-  BookOpen, 
-  BarChart3, 
-  Layers, 
-  Settings, 
-  ArrowRight, 
-  ChevronLeft, 
+import {
+  Cpu,
+  Activity,
+  BookOpen,
+  BarChart3,
+  Layers,
+  Settings,
+  ArrowRight,
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Calendar, 
+  Calendar,
   ListTodo,
   TrendingUp,
   AlertTriangle,
@@ -53,7 +53,7 @@ const API_BASE = 'http://localhost:8000';
 // ============= Helper to parse MCQ Options =============
 function parseOptions(text) {
   if (!text) return null;
-  
+
   // Regex to match options like (A) ... (B) ...
   const mcqPattern = /(?:\(|\s|^)([A-D])\)(?:\s+|:)([\s\S]*?)(?=\s*(?:\(|^[A-D]\)|[A-D]\s*[\.):]|$))/g;
   const matches = [...text.matchAll(mcqPattern)];
@@ -98,14 +98,14 @@ function getFallbackPlan(days) {
     { name: 'Programming & Algorithms', tasks: ['Practice Recursion tree analysis & time complexity', 'Review Searching, Sorting & Hashing rules'] },
     { name: 'Operating Systems & Databases', tasks: ['Solve CPU Scheduling & Semaphore sync problems', 'Revise Relational Algebra & SQL queries'] }
   ];
-  
+
   let currentDay = 1;
   return Array.from({ length: blocks }).map((_, i) => {
     const blockDays = daysPerBlock + (i < extraDays ? 1 : 0);
     const startDay = currentDay;
     const endDay = currentDay + blockDays - 1;
     currentDay = endDay + 1;
-    
+
     return {
       day: startDay === endDay ? `Day ${startDay}` : `Days ${startDay}-${endDay}`,
       title: `Core Focus: ${topics[i % topics.length].name}`,
@@ -256,7 +256,7 @@ function App() {
   const handleSelectExam = (exam) => {
     setSelectedExam(exam);
     setLoading(true);
-    
+
     Promise.all([
       fetch(`${API_BASE}/api/exams/${exam.id}/heatmap`).then(res => res.json()),
       fetch(`${API_BASE}/api/exams/${exam.id}/predictions`).then(res => res.json()),
@@ -264,26 +264,26 @@ function App() {
       fetch(`${API_BASE}/api/exams/${exam.id}/study-plan?total_days=30`).then(res => res.json()),
       fetch(`${API_BASE}/api/exams/${exam.id}/topics`).then(res => res.json())
     ])
-    .then(([heatmap, preds, papersData, plan, topics]) => {
-      setHeatmapData(heatmap);
-      setPredictions(preds);
-      setPapers(papersData);
-      setStudyPlan(plan);
-      setExamTopics(topics);
-      // Default to "All Papers" instead of pre-selecting the first year, for a better global search UX
-      setSelectedPaper(null);
-      setLoading(false);
-    })
-    .catch(err => {
-      console.error(err);
-      setHeatmapData({ years: [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025], data: [] });
-      setPredictions([]);
-      setPapers([]);
-      setStudyPlan([]);
-      setExamTopics([]);
-      setSelectedPaper(null);
-      setLoading(false);
-    });
+      .then(([heatmap, preds, papersData, plan, topics]) => {
+        setHeatmapData(heatmap);
+        setPredictions(preds);
+        setPapers(papersData);
+        setStudyPlan(plan);
+        setExamTopics(topics);
+        // Default to "All Papers" instead of pre-selecting the first year, for a better global search UX
+        setSelectedPaper(null);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setHeatmapData({ years: [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025], data: [] });
+        setPredictions([]);
+        setPapers([]);
+        setStudyPlan([]);
+        setExamTopics([]);
+        setSelectedPaper(null);
+        setLoading(false);
+      });
   };
 
   const handleUpdateStudyPlan = (days, weaknesses) => {
@@ -532,37 +532,37 @@ function App() {
   const renderHeatmapCell = (marks, key) => {
     const maxMark = 16;
     const pct = Math.min(1, marks / maxMark);
-    
+
     let bgIntensity = 'rgba(255,255,255,0.02)';
     let textColor = 'var(--text-secondary)';
     let className = 'heatmap-cell';
-    
+
     if (marks > 0) {
       if (marks <= 3) {
         // Low: Amber / yellow gradient
-        bgIntensity = `linear-gradient(135deg, rgba(251, 191, 36, ${0.15 + (marks/3) * 0.25}), rgba(217, 119, 6, ${0.15 + (marks/3) * 0.25}))`;
+        bgIntensity = `linear-gradient(135deg, rgba(251, 191, 36, ${0.15 + (marks / 3) * 0.25}), rgba(217, 119, 6, ${0.15 + (marks / 3) * 0.25}))`;
       } else if (marks <= 7) {
         // Medium: Orange gradient
-        bgIntensity = `linear-gradient(135deg, rgba(249, 115, 22, ${0.4 + ((marks-3)/4) * 0.3}), rgba(234, 88, 12, ${0.4 + ((marks-3)/4) * 0.3}))`;
+        bgIntensity = `linear-gradient(135deg, rgba(249, 115, 22, ${0.4 + ((marks - 3) / 4) * 0.3}), rgba(234, 88, 12, ${0.4 + ((marks - 3) / 4) * 0.3}))`;
         textColor = '#ffffff';
       } else {
         // Critical: Red/coral gradient
-        bgIntensity = `linear-gradient(135deg, rgba(239, 68, 68, ${0.7 + ((marks-7)/9) * 0.25}), rgba(185, 28, 28, ${0.7 + ((marks-7)/9) * 0.25}))`;
+        bgIntensity = `linear-gradient(135deg, rgba(239, 68, 68, ${0.7 + ((marks - 7) / 9) * 0.25}), rgba(185, 28, 28, ${0.7 + ((marks - 7) / 9) * 0.25}))`;
         textColor = '#ffffff';
         className = 'heatmap-cell-critical';
       }
     }
-    
+
     return (
-      <div 
+      <div
         key={key}
         className={className}
-        style={{ 
+        style={{
           background: bgIntensity,
           color: textColor,
-          padding: '6px 2px', 
-          borderRadius: '4px', 
-          fontWeight: 'bold', 
+          padding: '6px 2px',
+          borderRadius: '4px',
+          fontWeight: 'bold',
           textAlign: 'center',
           fontSize: '0.75rem',
           border: marks > 7 ? undefined : '1px solid rgba(255,255,255,0.02)'
@@ -588,8 +588,8 @@ function App() {
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }}></span>
             <span>GATE CS Module Seeding Active</span>
           </div>
-          <button 
-            className="glass-panel" 
+          <button
+            className="glass-panel"
             style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', borderColor: 'rgba(99, 102, 241, 0.3)', backgroundColor: 'rgba(99, 102, 241, 0.1)', color: 'white' }}
             onClick={() => setCurrentView('admin')}
           >
@@ -629,17 +629,7 @@ function App() {
                   </div>
                 </div>
               ))}
-              
-              <div className="glass-panel category-card" style={{ opacity: 0.5, cursor: 'not-allowed', borderStyle: 'dashed' }}>
-                <div className="category-icon-wrapper" style={{ backgroundColor: 'rgba(255,255,255,0.02)', color: 'var(--text-muted)' }}>
-                  <HelpCircle size={24} />
-                </div>
-                <h3>Medical & UPSC</h3>
-                <p>Curating 10-year patterns for NEET, JEE Main, and Civil Services. Coming soon.</p>
-                <div className="category-footer">
-                  <span className="category-exams-count" style={{ color: 'var(--accent-rose)' }}>Locked Phase 5</span>
-                </div>
-              </div>
+
             </div>
           </div>
         </>
@@ -651,7 +641,7 @@ function App() {
           <button className="back-button" onClick={handleBackToCategories}>
             <ChevronLeft size={16} /> Back to Disciplines
           </button>
-          
+
           <div className="hero" style={{ marginBottom: '32px', textAlign: 'left', marginLeft: '0', maxWidth: '100%' }}>
             <h2>Available Exams in <span style={{ color: selectedCategory.color }}>{selectedCategory.name}</span></h2>
             <p>Select an exam to load its topic-pairing heatmap and predictive trends dashboard.</p>
@@ -687,7 +677,7 @@ function App() {
               <h2 style={{ fontSize: '1.75rem' }}>{selectedExam.full_name} Dashboard</h2>
               <p style={{ fontSize: '0.9rem' }}>Pre-seeded Ingestion: 10 Years (2015-2025) • Prediction Model: Statistical v5</p>
             </div>
-            
+
             <div style={{ display: 'flex', gap: '24px' }}>
               <div style={{ textAlign: 'center' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase' }}>Database Papers</span>
@@ -703,28 +693,28 @@ function App() {
 
           {/* Navigation Tabs */}
           <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '32px', gap: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
-            <button 
+            <button
               className={`btn-secondary ${activeTab === 'heatmap' ? 'glass-panel' : ''}`}
               style={{ background: activeTab === 'heatmap' ? 'rgba(99,102,241,0.1)' : 'transparent', borderColor: activeTab === 'heatmap' ? 'rgba(99,102,241,0.3)' : 'transparent', color: activeTab === 'heatmap' ? 'white' : 'var(--text-secondary)', padding: '10px 20px', fontSize: '0.9rem', borderRadius: '8px 8px 0 0' }}
               onClick={() => setActiveTab('heatmap')}
             >
               <BarChart3 size={16} style={{ marginRight: '6px', display: 'inline', verticalAlign: 'middle' }} /> Topic Heatmap
             </button>
-            <button 
+            <button
               className={`btn-secondary ${activeTab === 'predictions' ? 'glass-panel' : ''}`}
               style={{ background: activeTab === 'predictions' ? 'rgba(99,102,241,0.1)' : 'transparent', borderColor: activeTab === 'predictions' ? 'rgba(99,102,241,0.3)' : 'transparent', color: activeTab === 'predictions' ? 'white' : 'var(--text-secondary)', padding: '10px 20px', fontSize: '0.9rem', borderRadius: '8px 8px 0 0' }}
               onClick={() => setActiveTab('predictions')}
             >
               <TrendingUp size={16} style={{ marginRight: '6px', display: 'inline', verticalAlign: 'middle' }} /> AI Predictions
             </button>
-            <button 
+            <button
               className={`btn-secondary ${activeTab === 'studyplan' ? 'glass-panel' : ''}`}
               style={{ background: activeTab === 'studyplan' ? 'rgba(99,102,241,0.1)' : 'transparent', borderColor: activeTab === 'studyplan' ? 'rgba(99,102,241,0.3)' : 'transparent', color: activeTab === 'studyplan' ? 'white' : 'var(--text-secondary)', padding: '10px 20px', fontSize: '0.9rem', borderRadius: '8px 8px 0 0' }}
               onClick={() => setActiveTab('studyplan')}
             >
               <ListTodo size={16} style={{ marginRight: '6px', display: 'inline', verticalAlign: 'middle' }} /> Dynamic Study Plan
             </button>
-            <button 
+            <button
               className={`btn-secondary ${activeTab === 'questions' ? 'glass-panel' : ''}`}
               style={{ background: activeTab === 'questions' ? 'rgba(99,102,241,0.1)' : 'transparent', borderColor: activeTab === 'questions' ? 'rgba(99,102,241,0.3)' : 'transparent', color: activeTab === 'questions' ? 'white' : 'var(--text-secondary)', padding: '10px 20px', fontSize: '0.9rem', borderRadius: '8px 8px 0 0' }}
               onClick={() => setActiveTab('questions')}
@@ -741,7 +731,7 @@ function App() {
                   <h3 style={{ fontSize: '1.25rem', marginBottom: '6px' }}>Decadal Topic Heatmap</h3>
                   <p style={{ fontSize: '0.85rem' }}>Click any subject to expand and see topic-level breakdowns. Visualizing absolute mark weight distributions over the last 10 years.</p>
                 </div>
-                <button 
+                <button
                   className="seed-btn"
                   disabled={seeding}
                   onClick={handleReseed}
@@ -766,7 +756,7 @@ function App() {
                     </div>
                   ) : (() => {
                     const years = heatmapData.years.length > 0 ? heatmapData.years : [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
-                    
+
                     const parentTopicMap = {};
                     heatmapData.data.forEach(t => {
                       if (!t.parent_id) {
@@ -805,21 +795,21 @@ function App() {
                         {Object.values(parentTopicMap).map((row, idx) => {
                           const isExpanded = expandedSubjects[row.id];
                           const subtopicData = subtopicHeatmaps[row.id];
-                          
+
                           return (
                             <React.Fragment key={idx}>
                               {/* Parent Subject Row */}
-                              <div 
+                              <div
                                 className="heatmap-subject-row"
                                 onClick={() => handleToggleSubject(row)}
-                                style={{ 
-                                  display: 'grid', 
-                                  gridTemplateColumns: `240px repeat(${years.length}, 1fr)`, 
-                                  gap: '4px', 
-                                  alignItems: 'center', 
-                                  fontSize: '0.8rem', 
-                                  padding: '8px 12px', 
-                                  borderBottom: '1px solid rgba(255,255,255,0.02)', 
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: `240px repeat(${years.length}, 1fr)`,
+                                  gap: '4px',
+                                  alignItems: 'center',
+                                  fontSize: '0.8rem',
+                                  padding: '8px 12px',
+                                  borderBottom: '1px solid rgba(255,255,255,0.02)',
                                   minWidth: '800px',
                                   backgroundColor: selectedHeatmapTopic?.id === row.id ? 'rgba(239, 68, 68, 0.08)' : isExpanded ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
                                 }}
@@ -841,21 +831,21 @@ function App() {
                                 <div className="heatmap-subtopic-container" style={{ maxHeight: isExpanded ? '1000px' : '0', opacity: isExpanded ? 1 : 0 }}>
                                   {subtopicData ? (
                                     subtopicData.subtopics.map((sub, sIdx) => (
-                                      <div 
+                                      <div
                                         key={sIdx}
                                         className="heatmap-subtopic-row"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setSelectedHeatmapTopic(sub);
                                         }}
-                                        style={{ 
-                                          display: 'grid', 
-                                          gridTemplateColumns: `240px repeat(${years.length}, 1fr)`, 
-                                          gap: '4px', 
-                                          alignItems: 'center', 
-                                          fontSize: '0.78rem', 
-                                          padding: '6px 12px', 
-                                          borderBottom: '1px solid rgba(255,255,255,0.01)', 
+                                        style={{
+                                          display: 'grid',
+                                          gridTemplateColumns: `240px repeat(${years.length}, 1fr)`,
+                                          gap: '4px',
+                                          alignItems: 'center',
+                                          fontSize: '0.78rem',
+                                          padding: '6px 12px',
+                                          borderBottom: '1px solid rgba(255,255,255,0.01)',
                                           minWidth: '800px',
                                           backgroundColor: selectedHeatmapTopic?.id === sub.id ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
                                         }}
@@ -928,7 +918,7 @@ function App() {
                         <strong style={{ color: 'var(--accent-amber)' }}>
                           {(() => {
                             const values = Object.values(selectedHeatmapTopic.years).map(y => typeof y === 'object' ? y.avg_difficulty : 2).filter(Boolean);
-                            const avg = values.length > 0 ? values.reduce((a,b) => a+b, 0) / values.length : 2.0;
+                            const avg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 2.0;
                             return avg > 2.3 ? 'Hard' : avg > 1.6 ? 'Medium' : 'Easy';
                           })()}
                         </strong>
@@ -939,8 +929,8 @@ function App() {
                       <strong>AI Study Guidance:</strong> This topic is highly critical for score optimization. Practice core numerical formulas and solve past questions from high-weight years highlighted in red.
                     </div>
 
-                    <button 
-                      className="primary-btn" 
+                    <button
+                      className="primary-btn"
                       style={{ padding: '8px 12px', fontSize: '0.8rem', marginTop: '16px', width: 'fit-content' }}
                       onClick={() => handleToggleWeakness(selectedHeatmapTopic.name)}
                     >
@@ -954,9 +944,9 @@ function App() {
                       <div>
                         <h4 style={{ fontSize: '0.95rem', color: 'white', fontWeight: 'bold' }}>Historical Weightage Trend (2015-2025)</h4>
                       </div>
-                      <button 
-                        className="glass-panel" 
-                        style={{ padding: '4px 10px', fontSize: '0.72rem', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)', color: 'white', backgroundColor: 'rgba(255,255,255,0.03)' }} 
+                      <button
+                        className="glass-panel"
+                        style={{ padding: '4px 10px', fontSize: '0.72rem', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)', color: 'white', backgroundColor: 'rgba(255,255,255,0.03)' }}
                         onClick={() => setSelectedHeatmapTopic(null)}
                       >
                         Close Details
@@ -1001,7 +991,7 @@ function App() {
 
               <div className="glass-panel" style={{ padding: '24px' }}>
                 <h3 style={{ fontSize: '1.25rem', marginBottom: '16px' }}>Upcoming Exam Probability Analysis</h3>
-                
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {predictions.length === 0 ? (
                     <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -1019,7 +1009,7 @@ function App() {
                         trend = 'Rising Weight';
                         color = 'var(--accent-amber)';
                       }
-                      
+
                       return (
                         <div key={i} style={{ padding: '16px', background: 'rgba(25, 28, 44, 0.25)', border: '1px solid rgba(255, 255, 255, 0.03)', borderRadius: '12px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
@@ -1063,27 +1053,27 @@ function App() {
                 <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Study Plan Duration (Days)</label>
-                    <input 
-                      type="number" 
-                      value={studyPlanDays} 
+                    <input
+                      type="number"
+                      value={studyPlanDays}
                       onChange={(e) => setStudyPlanDays(e.target.value)}
                       min="7"
                       max="365"
-                      style={{ padding: '8px', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white', width: '120px' }} 
+                      style={{ padding: '8px', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white', width: '120px' }}
                     />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1', minWidth: '200px' }}>
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Target Weaknesses (Selected below, or type custom)</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Cache mapping, SQL Queries" 
-                      value={studyPlanWeaknesses} 
+                    <input
+                      type="text"
+                      placeholder="e.g. Cache mapping, SQL Queries"
+                      value={studyPlanWeaknesses}
                       onChange={(e) => setStudyPlanWeaknesses(e.target.value)}
-                      style={{ padding: '8px', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white' }} 
+                      style={{ padding: '8px', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white' }}
                     />
                   </div>
-                  <button 
-                    className="btn-primary" 
+                  <button
+                    className="btn-primary"
                     style={{ marginTop: '16px', padding: '8px 16px', height: '38px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
                     onClick={() => handleUpdateStudyPlan(studyPlanDays, studyPlanWeaknesses)}
                   >
@@ -1109,7 +1099,7 @@ function App() {
                               >
                                 {weaknessExpandedSubjects[subject.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                               </button>
-                              <button 
+                              <button
                                 className={`weakness-chip subject-chip ${isSubjectActive ? 'active' : ''}`}
                                 onClick={() => handleToggleWeakness(subject.name)}
                               >
@@ -1213,204 +1203,204 @@ function App() {
             };
 
             return (
-            <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
-                <div>
-                  <h3 style={{ fontSize: '1.25rem', marginBottom: '4px' }}>Historical Question Explorer</h3>
-                  <p style={{ fontSize: '0.85rem' }}>Browse past paper questions with filtering by subject, topic, and text search.</p>
-                </div>
-                <span className="question-count-badge">
-                  {questions.length} {questions.length === 1 ? 'Question' : 'Questions'}
-                </span>
-              </div>
-
-              {/* Search & Filter Bar */}
-              <div className="question-search-bar">
-                <div className="search-input-wrapper">
-                  <Search size={16} />
-                  <input 
-                    type="text"
-                    className="question-search-input"
-                    placeholder="Search all past papers by text, topic, keyword..."
-                    value={questionSearch}
-                    onChange={(e) => setQuestionSearch(e.target.value)}
-                  />
-                </div>
-                
-                <select 
-                  className="question-filter-select"
-                  value={selectedPaper ? selectedPaper.id : ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '') {
-                      setSelectedPaper(null); // All Papers global search
-                    } else {
-                      const paper = papers.find(p => p.id === parseInt(val));
-                      if (paper) setSelectedPaper(paper);
-                    }
-                  }}
-                >
-                  <option value="">All Papers</option>
-                  {papers.map(p => (
-                    <option key={p.id} value={p.id}>GATE CS {p.year}</option>
-                  ))}
-                </select>
-
-                <select 
-                  className="question-filter-select"
-                  value={questionSubjectFilter}
-                  onChange={(e) => setQuestionSubjectFilter(e.target.value)}
-                >
-                  <option value="">All Subjects</option>
-                  {examTopics.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Questions list */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {questions.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
-                    <BookOpen size={48} style={{ margin: '0 auto 12px', display: 'block', opacity: 0.3 }} />
-                    <p style={{ fontSize: '1rem', fontWeight: '500' }}>No questions found</p>
-                    <p style={{ fontSize: '0.8rem', marginTop: '4px' }}>
-                      {questionSearch || questionSubjectFilter 
-                        ? 'Try adjusting your search or filter criteria. Check if database seeding has been executed.' 
-                        : 'Questions will populate once data is seeded or PDF parsing is executed.'}
-                    </p>
+              <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.25rem', marginBottom: '4px' }}>Historical Question Explorer</h3>
+                    <p style={{ fontSize: '0.85rem' }}>Browse past paper questions with filtering by subject, topic, and text search.</p>
                   </div>
-                ) : (
-                  currentQuestions.map(q => {
-                    const diffLabel = q.difficulty === 'H' ? 'Hard' : q.difficulty === 'M' ? 'Medium' : 'Easy';
-                    const parsed = parseOptions(q.question_text);
-                    const cleanText = parsed ? parsed.cleanText : q.question_text;
-                    const options = parsed ? parsed.options : [];
+                  <span className="question-count-badge">
+                    {questions.length} {questions.length === 1 ? 'Question' : 'Questions'}
+                  </span>
+                </div>
 
-                    return (
-                      <div key={q.id} className="question-card">
-                        {/* Card Header */}
-                        <div className="question-card-header">
-                          <div className="question-card-header-left">
-                            <span className="question-number-badge">Q.{q.question_number}</span>
-                            
-                            {/* Year Badge if showing All Papers */}
-                            {!selectedPaper && q.paper_year && (
-                              <span className="q-badge" style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                GATE CS {q.paper_year}
+                {/* Search & Filter Bar */}
+                <div className="question-search-bar">
+                  <div className="search-input-wrapper">
+                    <Search size={16} />
+                    <input
+                      type="text"
+                      className="question-search-input"
+                      placeholder="Search all past papers by text, topic, keyword..."
+                      value={questionSearch}
+                      onChange={(e) => setQuestionSearch(e.target.value)}
+                    />
+                  </div>
+
+                  <select
+                    className="question-filter-select"
+                    value={selectedPaper ? selectedPaper.id : ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setSelectedPaper(null); // All Papers global search
+                      } else {
+                        const paper = papers.find(p => p.id === parseInt(val));
+                        if (paper) setSelectedPaper(paper);
+                      }
+                    }}
+                  >
+                    <option value="">All Papers</option>
+                    {papers.map(p => (
+                      <option key={p.id} value={p.id}>GATE CS {p.year}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    className="question-filter-select"
+                    value={questionSubjectFilter}
+                    onChange={(e) => setQuestionSubjectFilter(e.target.value)}
+                  >
+                    <option value="">All Subjects</option>
+                    {examTopics.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Questions list */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {questions.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
+                      <BookOpen size={48} style={{ margin: '0 auto 12px', display: 'block', opacity: 0.3 }} />
+                      <p style={{ fontSize: '1rem', fontWeight: '500' }}>No questions found</p>
+                      <p style={{ fontSize: '0.8rem', marginTop: '4px' }}>
+                        {questionSearch || questionSubjectFilter
+                          ? 'Try adjusting your search or filter criteria. Check if database seeding has been executed.'
+                          : 'Questions will populate once data is seeded or PDF parsing is executed.'}
+                      </p>
+                    </div>
+                  ) : (
+                    currentQuestions.map(q => {
+                      const diffLabel = q.difficulty === 'H' ? 'Hard' : q.difficulty === 'M' ? 'Medium' : 'Easy';
+                      const parsed = parseOptions(q.question_text);
+                      const cleanText = parsed ? parsed.cleanText : q.question_text;
+                      const options = parsed ? parsed.options : [];
+
+                      return (
+                        <div key={q.id} className="question-card">
+                          {/* Card Header */}
+                          <div className="question-card-header">
+                            <div className="question-card-header-left">
+                              <span className="question-number-badge">Q.{q.question_number}</span>
+
+                              {/* Year Badge if showing All Papers */}
+                              {!selectedPaper && q.paper_year && (
+                                <span className="q-badge" style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                  GATE CS {q.paper_year}
+                                </span>
+                              )}
+
+                              <div className="question-meta-badges">
+                                <span className="q-badge q-badge-type">{q.question_style}</span>
+                                <span className="q-badge q-badge-marks">{q.marks} {q.marks === 1 ? 'Mark' : 'Marks'}</span>
+                                <span className={`q-badge q-badge-difficulty-${q.difficulty}`}>{diffLabel}</span>
+                              </div>
+                            </div>
+                            {(q.parent_subject_name || q.topic_name) && (
+                              <span className="q-badge q-badge-topic">
+                                {q.parent_subject_name || q.topic_name}
+                                {q.parent_subject_name && q.topic_name && q.parent_subject_name !== q.topic_name && ` › ${q.topic_name}`}
                               </span>
                             )}
-                            
-                            <div className="question-meta-badges">
-                              <span className="q-badge q-badge-type">{q.question_style}</span>
-                              <span className="q-badge q-badge-marks">{q.marks} {q.marks === 1 ? 'Mark' : 'Marks'}</span>
-                              <span className={`q-badge q-badge-difficulty-${q.difficulty}`}>{diffLabel}</span>
-                            </div>
                           </div>
-                          {(q.parent_subject_name || q.topic_name) && (
-                            <span className="q-badge q-badge-topic">
-                              {q.parent_subject_name || q.topic_name}
-                              {q.parent_subject_name && q.topic_name && q.parent_subject_name !== q.topic_name && ` › ${q.topic_name}`}
-                            </span>
-                          )}
+
+                          {/* Card Body */}
+                          <div className="question-card-body">
+                            <p className="question-text">{cleanText}</p>
+
+                            {/* MCQ/MSQ option choices rendering */}
+                            {options.length > 0 && (
+                              <div className="question-options-grid">
+                                {options.map((opt, oIdx) => (
+                                  <div key={oIdx} className="question-option-card">
+                                    <span className="question-option-label">{opt.label}</span>
+                                    <span className="question-option-text">{opt.text}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {q.has_diagram && (
+                              <div className="question-diagram-placeholder">
+                                <Image size={20} />
+                                <span>This question contains a diagram or visual element</span>
+                              </div>
+                            )}
+
+                            <AnswerSpoiler answer={q.correct_answer} />
+                          </div>
                         </div>
-                        
-                        {/* Card Body */}
-                        <div className="question-card-body">
-                          <p className="question-text">{cleanText}</p>
-                          
-                          {/* MCQ/MSQ option choices rendering */}
-                          {options.length > 0 && (
-                            <div className="question-options-grid">
-                              {options.map((opt, oIdx) => (
-                                <div key={oIdx} className="question-option-card">
-                                  <span className="question-option-label">{opt.label}</span>
-                                  <span className="question-option-text">{opt.text}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {q.has_diagram && (
-                            <div className="question-diagram-placeholder">
-                              <Image size={20} />
-                              <span>This question contains a diagram or visual element</span>
-                            </div>
-                          )}
-                          
-                          <AnswerSpoiler answer={q.correct_answer} />
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Pagination Controls */}
-              {totalPages > 1 && (
-                <div className="pagination-container">
-                  <div className="pagination-info">
-                    Showing {indexOfFirstQuestion + 1} to {Math.min(indexOfLastQuestion, totalQuestions)} of {totalQuestions} questions
-                  </div>
-
-                  <div className="pagination-buttons">
-                    <button
-                      className="btn-secondary pagination-arrow"
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(prev => prev - 1)}
-                    >
-                      Previous
-                    </button>
-
-                    {getPageNumbers().map((pageNum, idx) => {
-                      if (pageNum === '...') {
-                        return (
-                          <span key={`ellipsis-${idx}`} className="pagination-ellipsis">
-                            ...
-                          </span>
-                        );
-                      }
-                      return (
-                        <button
-                          key={`page-${pageNum}`}
-                          className={`btn-secondary pagination-number ${currentPage === pageNum ? 'active' : ''}`}
-                          onClick={() => setCurrentPage(pageNum)}
-                        >
-                          {pageNum}
-                        </button>
                       );
-                    })}
-
-                    <button
-                      className="btn-secondary pagination-arrow"
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(prev => prev + 1)}
-                    >
-                      Next
-                    </button>
-                  </div>
-
-                  <div className="pagination-select-wrapper">
-                    <select
-                      className="question-filter-select pagination-select"
-                      value={questionsPerPage}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setQuestionsPerPage(val === 'all' ? 'all' : parseInt(val));
-                        setCurrentPage(1);
-                      }}
-                    >
-                      <option value={10}>10 per page</option>
-                      <option value={25}>25 per page</option>
-                      <option value={50}>50 per page</option>
-                      <option value={100}>100 per page</option>
-                      <option value="all">Show All</option>
-                    </select>
-                  </div>
+                    })
+                  )}
                 </div>
-              )}
 
-            </div>
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="pagination-container">
+                    <div className="pagination-info">
+                      Showing {indexOfFirstQuestion + 1} to {Math.min(indexOfLastQuestion, totalQuestions)} of {totalQuestions} questions
+                    </div>
+
+                    <div className="pagination-buttons">
+                      <button
+                        className="btn-secondary pagination-arrow"
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(prev => prev - 1)}
+                      >
+                        Previous
+                      </button>
+
+                      {getPageNumbers().map((pageNum, idx) => {
+                        if (pageNum === '...') {
+                          return (
+                            <span key={`ellipsis-${idx}`} className="pagination-ellipsis">
+                              ...
+                            </span>
+                          );
+                        }
+                        return (
+                          <button
+                            key={`page-${pageNum}`}
+                            className={`btn-secondary pagination-number ${currentPage === pageNum ? 'active' : ''}`}
+                            onClick={() => setCurrentPage(pageNum)}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+
+                      <button
+                        className="btn-secondary pagination-arrow"
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(prev => prev + 1)}
+                      >
+                        Next
+                      </button>
+                    </div>
+
+                    <div className="pagination-select-wrapper">
+                      <select
+                        className="question-filter-select pagination-select"
+                        value={questionsPerPage}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setQuestionsPerPage(val === 'all' ? 'all' : parseInt(val));
+                          setCurrentPage(1);
+                        }}
+                      >
+                        <option value={10}>10 per page</option>
+                        <option value={25}>25 per page</option>
+                        <option value={50}>50 per page</option>
+                        <option value={100}>100 per page</option>
+                        <option value="all">Show All</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+              </div>
             );
           })()}
         </div>

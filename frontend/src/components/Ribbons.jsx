@@ -176,9 +176,10 @@ const Ribbons = ({
             const height = container.clientHeight;
             mouse.set((x / width) * 2 - 1, (y / height) * -2 + 1, 0);
         }
-        window.addEventListener('mousemove', updateMouse);
-        window.addEventListener('touchstart', updateMouse);
-        window.addEventListener('touchmove', updateMouse);
+        const eventOptions = { passive: true, capture: true };
+        document.addEventListener('pointermove', updateMouse, eventOptions);
+        document.addEventListener('touchstart', updateMouse, eventOptions);
+        document.addEventListener('touchmove', updateMouse, eventOptions);
 
         const tmp = new Vec3();
         let frameId;
@@ -215,9 +216,9 @@ const Ribbons = ({
 
         return () => {
             window.removeEventListener('resize', resize);
-            window.removeEventListener('mousemove', updateMouse);
-            window.removeEventListener('touchstart', updateMouse);
-            window.removeEventListener('touchmove', updateMouse);
+            document.removeEventListener('pointermove', updateMouse, eventOptions);
+            document.removeEventListener('touchstart', updateMouse, eventOptions);
+            document.removeEventListener('touchmove', updateMouse, eventOptions);
             cancelAnimationFrame(frameId);
             if (gl.canvas && gl.canvas.parentNode === container) {
                 container.removeChild(gl.canvas);

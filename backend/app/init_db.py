@@ -292,11 +292,10 @@ def seed_database():
             
         # 2. Seed Exams
         exams_to_seed = [
-            {"category": "Engineering", "name": "GATE-CS", "full_name": "Graduate Aptitude Test in Engineering - Computer Science", "conducting": "IISc & IITs", "freq": "Annual"},
-            {"category": "Engineering", "name": "JEE-Main", "full_name": "Joint Entrance Examination - Main", "conducting": "NTA", "freq": "Twice a Year"},
-            {"category": "Medical", "name": "NEET", "full_name": "National Eligibility cum Entrance Test", "conducting": "NTA", "freq": "Annual"},
-            {"category": "UPSC", "name": "UPSC-CSE", "full_name": "Civil Services Examination", "conducting": "UPSC", "freq": "Annual"},
-            {"category": "Management", "name": "CAT", "full_name": "Common Admission Test", "conducting": "IIMs", "freq": "Annual"}
+            {"category": "Engineering", "name": "GATE-CS", "full_name": "Graduate Aptitude Test in Engineering - Computer Science(GATE-CS)", "conducting": "IISc & IITs", "freq": "Annual"},
+            {"category": "Engineering", "name": "JEE-Main", "full_name": "Joint Entrance Examination - Main(JEE-Main)", "conducting": "NTA", "freq": "Twice a Year"},
+            {"category": "Medical", "name": "NEET", "full_name": "National Eligibility cum Entrance Test(NEET)", "conducting": "NTA", "freq": "Annual"},
+            {"category": "UPSC", "name": "UPSC-CSE", "full_name": "Civil Services Examination(UPSC-CSE)", "conducting": "UPSC", "freq": "Annual"}
         ]
         
         db_exams = {}
