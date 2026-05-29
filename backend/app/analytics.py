@@ -13,7 +13,7 @@ if api_key:
 class AnalyticsEngine:
     def __init__(self, db: Session):
         self.db = db
-        self.model = genai.GenerativeModel('gemini-1.5-flash') if api_key else None
+        self.model = genai.GenerativeModel('gemini-2.5-flash') if api_key else None
 
     def generate_predictions(self, exam_id: int, target_year: int = 2026):
         """

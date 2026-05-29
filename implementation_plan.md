@@ -199,3 +199,129 @@ exam_categories (id, name, icon, description, color)
 4. **Cross-Exam Intelligence**: Compares macroscopic education trends across different exam categories (e.g., GATE vs JEE).
 5. **Confidence Calibrator**: Radical transparency feature showing the model's self-tested accuracy on historical holdout years.
 6. **Exam Simulator**: Auto-generates a full mock paper mimicking the exact predicted distribution and difficulty of the upcoming year.
+
+---
+
+## ⚡ GATE CS 2011 Scanned PDF Ingestion Plan
+
+Replace the 58 synthetic placeholder questions for GATE CS 2011 with real exam questions extracted from the scanned PDF `pdfs/GATE2011.pdf`.
+
+### Background & Constraints
+
+- **Scanned PDF**: `GATE2011.pdf` is a scanned image PDF — all 17 pages return 0 characters from `fitz.get_text()`. Traditional text-based extraction is impossible.
+- **Booklet Code A confirmed**: Page 1 of the PDF shows "Question Booklet Code → A" and "CS–A" in the footer. All answer keys must use Code A.
+- **Paper structure** (from cover page):
+  - 65 total questions, 100 marks
+  - Q.1–Q.25: 1-mark each (MCQ)
+  - Q.26–Q.55: 2-marks each (MCQ)
+  - Q.48–Q.51: Common data questions
+  - Q.52–Q.55: Linked answer pairs (Q.52→Q.53, Q.54→Q.55)
+  - Q.56–Q.60: 1-mark General Aptitude
+  - Q.61–Q.65: 2-marks General Aptitude
+- **Page 1 is instructions only** — contains no questions, must be skipped.
+- **Questions rendered to images**: All 17 pages have been pre-rendered to `backend/data/temp_pages/page_1.png` through `page_17.png` at 150 DPI using PyMuPDF.
+- **Gemini copyright filter**: `gemini-2.5-flash` blocks verbatim transcription of exam papers (finish_reason=4, "reciting from copyrighted material"). **Tested workaround**: instructing the model to slightly paraphrase the prose while preserving all technical/mathematical content works successfully.
+- **Gemini free-tier rate limits**: 15 RPM. With 17 pages (skipping page 1 = 16 API calls), a 4-second delay between calls keeps us at ~12 RPM — well within limits. Total runtime ≈ 3–4 minutes.
+
+> [!WARNING]
+> **Re-running `parse_and_ingest_all.py`** (the bulk pipeline) will delete all questions and re-create synthetic placeholders for 2011, since GATE2011.pdf is in the `SKIP_FITZ` set. After this ingestion, avoid re-running the bulk pipeline without first removing 2011 from its scope, or the real questions will be overwritten.
+
+---
+
+### Proposed Changes
+
+#### 1. Ingestion Script: [NEW] [ingest_2011.py](file:///e:/New%20folder/backend/ingest_2011.py)
+
+A standalone Python script that:
+
+**Setup & DB prep:**
+- Loads `.env` credentials via `dotenv` and configures `sys.stdout` to UTF-8 (needed for ₹ and other Unicode in Windows terminals).
+- Looks up the GATE 2011 paper by querying `Paper` where `year=2011` (not hardcoded Paper ID — resilient to re-seeding).
+- Deletes all existing questions for that paper from the `questions` table.
+
+**Visual extraction loop (pages 2–17):**
+- For each page image, sends it to `gemini-2.5-flash` with a structured prompt requesting JSON output containing `question_number`, `question_text` (with options embedded), `question_style`, `has_diagram`, and `diagram_bbox`.
+- **Rate limit**: `time.sleep(4)` between each API call (16 calls ÷ 4s = ~4 RPM peak).
+- **Paraphrasing instruction**: The prompt tells the model to slightly paraphrase prose to avoid copyright recitation blocks, while keeping all technical content (variables, values, options, formulas) exactly intact.
+- **Deduplication**: If the same `question_number` appears on multiple pages (question spanning a page break), the later extraction overwrites the earlier one — the second page typically has the complete question + options.
+
+**Diagram cropping:**
+- For questions where `has_diagram=true` and `diagram_bbox` is returned, the script:
+  1. Maps the normalized `[ymin, xmin, ymax, xmax]` coordinates (0.0–1.0) to actual PDF page pixels.
+  2. Crops the region using `page.get_pixmap(clip=rect, dpi=150)`.
+  3. Saves the crop to `backend/data/slices/{paper_id}/q_{q_num}.png`.
+- The `diagram_path` stored in the DB will be a **relative URL path**: `/slices/{paper_id}/q_{q_num}.png` (served by the new static mount).
+
+**Classification & answer keys:**
+- Each question is classified into subject/chapter using the existing keyword-matching logic from `parse_and_ingest_all.py` (`GATE_SUBJECTS` dictionary).
+- Marks are assigned based on the confirmed structure: Q.1–25 → 1.0, Q.26–55 → 2.0, Q.56–60 → 1.0, Q.61–65 → 2.0.
+- Correct answers are set from the **official Code A answer key** (sourced from GeeksforGeeks verified key):
+
+| Q | Ans | Q | Ans | Q | Ans | Q | Ans | Q | Ans |
+|---|-----|---|-----|---|-----|---|-----|---|-----|
+| 1 | C | 14 | B | 27 | B | 40 | B | 53 | C |
+| 2 | D | 15 | A | 28 | A | 41 | B | 54 | B |
+| 3 | A | 16 | C | 29 | B | 42 | B | 55 | C |
+| 4 | C | 17 | B | 30 | A | 43 | D | 56 | A |
+| 5 | B | 18 | C | 31 | A | 44 | B | 57 | B |
+| 6 | C | 19 | A | 32 | D | 45 | A | 58 | C |
+| 7 | A | 20 | B | 33 | D | 46 | C | 59 | B |
+| 8 | B | 21 | D | 34 | D | 47 | C | 60 | D |
+| 9 | D | 22 | C | 35 | B | 48 | B | 61 | C |
+| 10 | D | 23 | B | 36 | B | 49 | D | 62 | D |
+| 11 | D | 24 | C | 37 | C | 50 | D | 63 | A |
+| 12 | A | 25 | A | 38 | C | 51 | B | 64 | C |
+| 13 | D | 26 | C | 39 | A | 52 | A | 65 | D |
+
+**Final steps:**
+- Updates the paper's `total_questions` to 65 and `is_processed` to True.
+- Calls `recompute_topic_stats()` to regenerate heatmap aggregates for 2011.
+
+---
+
+#### 2. Static File Serving: [MODIFY] [main.py](file:///e:/New%20folder/backend/app/main.py)
+- Import `StaticFiles` from `fastapi.staticfiles`.
+- Mount the slices directory at `/slices`:
+  ```python
+  from fastapi.staticfiles import StaticFiles
+  SLICES_DIR = Path(os.path.dirname(os.path.dirname(__file__))) / "data" / "slices"
+  app.mount("/slices", StaticFiles(directory=str(SLICES_DIR)), name="slices")
+  ```
+- This makes `http://localhost:8000/slices/{paper_id}/q_13.png` serve the cropped diagram image.
+
+---
+
+#### 3. Frontend Diagram Rendering: [MODIFY] [QuestionCard.jsx](file:///e:/New%20folder/frontend/src/components/QuestionCard.jsx)
+
+Currently, when `q.has_diagram` is true, the card only shows a text banner:
+> "Contains diagram / graphic content (Refer to standard papers if missing)"
+
+**Change**: Replace the text-only banner with actual image rendering:
+- If `q.diagram_path` exists, render an `<img>` tag with `src` set to `http://localhost:8000` + `q.diagram_path`.
+- If `q.has_diagram` is true but `diagram_path` is null/empty, keep the existing text fallback banner.
+- Style the image with `max-width: 100%`, `rounded-lg`, and a subtle border to match the dark theme.
+
+---
+
+#### 4. Admin Diagram Rendering: [MODIFY] [Admin.jsx](file:///e:/New%20folder/frontend/src/pages/Admin.jsx)
+- Apply the same URL resolution logic: prepend `http://localhost:8000` to relative `diagram_path` values starting with `/slices/`.
+
+---
+
+### Verification Plan
+
+#### Automated Verification
+1. Run `ingest_2011.py` and confirm it completes without errors across all 16 page API calls.
+2. Run a verification query script that checks:
+   - Exactly 65 questions exist for the 2011 paper.
+   - All 65 have non-null `correct_answer` values matching the Code A key.
+   - Questions with diagrams (e.g., Q.5, Q.13, Q.14, Q.23) have `has_diagram=True` and a valid `diagram_path`.
+   - The corresponding PNG files exist on disk at the expected paths.
+
+#### Manual Verification
+- Open the Question Explorer in the browser, filter by "GATE CS 2011", and verify:
+  - Real question text appears (not "What is the core theorem..." synthetic placeholders).
+  - Diagram images render inline for diagrammatic questions.
+  - Selecting an option and clicking "Verify Answer" correctly evaluates against the Code A key.
+
+

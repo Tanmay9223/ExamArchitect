@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Image, ChevronRight, Check, X, Bot } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { Image, ChevronRight, Check, X, Bot, ZoomIn, ZoomOut } from 'lucide-react';
 
 function parseOptions(text) {
   if (!text) return null;
-  const mcqPattern = /(?:\(|\s|^)([A-Da-d])\)(?:\s+|:)([\s\S]*?)(?=\s*(?:\(|^[A-Da-d]\)|[A-Da-d]\s*[.):]\s|$))/g;
+  const mcqPattern = /(?:\(|\s|^)([A-Da-d])\)(?:\s+|:)([\s\S]*?)(?=\s*(?:\([A-Da-d]\)|^[A-Da-d]\)|[A-Da-d]\s*[.):]\s|$))/g;
   const matches = [...text.matchAll(mcqPattern)];
   if (matches.length > 0) {
     const options = matches.map(m => ({ label: m[1].toUpperCase(), text: m[2].trim() }));
@@ -69,6 +70,62 @@ export default function QuestionCard({
 }) {
   const [localAnswer, setLocalAnswer] = useState(q.question_style === 'MSQ' ? [] : '');
   const [localShowAnswer, setLocalShowAnswer] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    setLocalAnswer(q.question_style === 'MSQ' ? [] : '');
+    setLocalShowAnswer(false);
+    setShowImageModal(false);
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+  }, [q.id, q.question_style]);
+
+  useEffect(() => {
+    if (showImageModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showImageModal]);
+
+  const handleZoomIn = () => setScale(prev => Math.min(prev + 0.25, 3));
+  const handleZoomOut = () => {
+    setScale(prev => {
+      const next = Math.max(prev - 0.25, 0.5);
+      if (next <= 1) setPosition({ x: 0, y: 0 });
+      return next;
+    });
+  };
+  const handleResetZoom = () => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+  };
+
+  const handlePointerDown = (e) => {
+    if (scale <= 1) return;
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+    e.target.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDragging) return;
+    const newX = e.clientX - dragStart.x;
+    const newY = e.clientY - dragStart.y;
+    setPosition({ x: newX, y: newY });
+  };
+
+  const handlePointerUp = (e) => {
+    setIsDragging(false);
+    e.target.releasePointerCapture(e.pointerId);
+  };
 
   const isControlled = controlledAnswer !== undefined;
   const currentAnswer = isControlled ? controlledAnswer : localAnswer;
@@ -147,7 +204,17 @@ export default function QuestionCard({
       {/* Header */}
       <div className="bg-black/20 px-5 py-3.5 border-b border-white/5 flex flex-wrap justify-between items-center gap-4">
         <div className="flex items-center gap-3">
-          <span className="font-bold text-indigo-400">Q.{qNumber || q.question_number}</span>
+          <span className="font-bold text-indigo-400">Q. {qNumber || q.question_number}</span>
+          {q.question_number && String(qNumber) !== String(q.question_number) && (
+            <span className="text-[10px] px-1.5 py-0.5 bg-white/5 text-slate-400 rounded font-medium border border-white/10" title="Source Question Number">
+              {q.question_number}q
+            </span>
+          )}
+          {q.question_number && String(qNumber) === String(q.question_number) && (
+            <span className="text-xs px-2 py-0.5 bg-indigo-500/10 text-indigo-300 rounded font-semibold border border-indigo-500/20">
+              {q.question_number}q
+            </span>
+          )}
           {!selectedPaper && q.paper_year && (
             <span className="text-xs px-2 py-0.5 border border-white/10 rounded text-slate-300">
               GATE CS {q.paper_year}
@@ -301,11 +368,37 @@ export default function QuestionCard({
           </div>
         )}
 
+
         {q.has_diagram && (
-          <div className="mt-4 flex items-center gap-2 text-amber-500/80 text-xs bg-amber-500/5 border border-amber-500/10 p-2.5 rounded-lg w-fit">
-            <Image size={14} /> Contains diagram / graphic content (Refer to standard papers if missing)
-          </div>
+          q.diagram_path ? (
+            <div className="mt-4">
+              <div className="relative group cursor-zoom-in w-fit" onClick={() => setShowImageModal(true)}>
+                <img
+                  src={`http://localhost:8000${q.diagram_path}`}
+                  alt={`Diagram for Q.${q.question_number}`}
+                  style={{ maxWidth: '100%', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}
+                  onError={(e) => {
+                    // If image fails to load, fall back to text banner
+                    e.target.style.display = 'none';
+                    e.target.parentNode.nextSibling.style.display = 'flex';
+                  }}
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-semibold rounded-lg pointer-events-none">
+                  <ZoomIn size={16} /> Click to expand diagram
+                </div>
+              </div>
+              <div className="mt-2 hidden items-center gap-2 text-amber-500/80 text-xs bg-amber-500/5 border border-amber-500/10 p-2.5 rounded-lg w-fit">
+                <Image size={14} /> Diagram image unavailable — refer to standard paper
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 flex items-center gap-2 text-amber-500/80 text-xs bg-amber-500/5 border border-amber-500/10 p-2.5 rounded-lg w-fit">
+              <Image size={14} /> Contains diagram / graphic content (Refer to standard papers if missing)
+            </div>
+          )
         )}
+
+
 
         {/* Action & Feedback row */}
         <div className="mt-6 pt-4 border-t border-white/5 flex flex-wrap justify-between items-center gap-4">
@@ -354,7 +447,10 @@ export default function QuestionCard({
 
             {onAskMentor && (
               <button
-                onClick={() => onAskMentor(q)}
+                onClick={() => onAskMentor({
+                  ...q,
+                  user_answer: Array.isArray(currentAnswer) ? currentAnswer.join(', ') : currentAnswer
+                })}
                 className="bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 hover:text-indigo-300 border border-indigo-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
               >
                 <Bot size={14} /> Ask AI Mentor
@@ -374,6 +470,81 @@ export default function QuestionCard({
           )}
         </div>
       </div>
+
+      {/* Zoomable Image Modal overlay */}
+      {showImageModal && q.diagram_path && createPortal(
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[9999] flex flex-col items-center justify-center p-4 select-none">
+          {/* Controls Header */}
+          <div className="w-full max-w-4xl flex items-center justify-between bg-[#191c2c]/80 border border-white/10 rounded-xl px-4 py-2.5 mb-4 text-white backdrop-blur-md shadow-2xl">
+            <span className="font-semibold text-sm text-slate-200">Diagram for Q. {qNumber || q.question_number}</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 border-r border-white/10 pr-4">
+                <button 
+                  onClick={handleZoomOut}
+                  className="p-1.5 hover:bg-white/10 rounded-lg text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  title="Zoom Out"
+                >
+                  <ZoomOut size={16} />
+                </button>
+                <span className="text-xs font-mono min-w-[40px] text-center text-slate-300">
+                  {Math.round(scale * 100)}%
+                </span>
+                <button 
+                  onClick={handleZoomIn}
+                  className="p-1.5 hover:bg-white/10 rounded-lg text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  title="Zoom In"
+                >
+                  <ZoomIn size={16} />
+                </button>
+                <button 
+                  onClick={handleResetZoom}
+                  className="text-xs px-2 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-slate-300 hover:text-white transition-colors ml-1 cursor-pointer"
+                >
+                  Reset
+                </button>
+              </div>
+              <button 
+                onClick={() => { setShowImageModal(false); handleResetZoom(); }}
+                className="p-1.5 hover:bg-white/10 rounded-lg text-slate-300 hover:text-white transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Image Viewport Container */}
+          <div className="w-full max-w-4xl flex-1 bg-black/40 border border-white/5 rounded-2xl overflow-hidden flex items-center justify-center p-6 min-h-[300px] relative">
+            <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+              <img
+                src={`http://localhost:8000${q.diagram_path}`}
+                alt={`Diagram for Q.${q.question_number}`}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                draggable={false}
+                style={{ 
+                  transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`, 
+                  transformOrigin: 'center center',
+                  transition: isDragging ? 'none' : 'transform 0.15s ease-out',
+                  cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
+                  maxWidth: '90%',
+                  maxHeight: '90%',
+                  objectFit: 'contain',
+                  touchAction: 'none'
+                }}
+              />
+            </div>
+            {scale > 1 && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 px-3 py-1.5 rounded-full text-[10px] text-slate-400 font-semibold pointer-events-none backdrop-blur-sm border border-white/5">
+                Drag / swipe to pan when zoomed
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

@@ -5,8 +5,7 @@ import Navbar from '../components/Shared/Navbar';
 import GithubGlobe from '../components/GithubGlobe';
 
 import Ribbons from '../components/Ribbons';
-
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from '../config';
 
 export default function Home() {
   const [categories, setCategories] = useState([]);

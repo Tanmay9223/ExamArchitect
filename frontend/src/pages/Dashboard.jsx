@@ -22,10 +22,9 @@ import StatCard from '../components/StatCard';
 import GapRadar from '../components/GapRadar';
 import WeaknessChatbot from '../components/WeaknessChatbot';
 import Confetti from '../components/Confetti';
+import { API_BASE } from '../config';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, ChartTooltip, Legend);
-
-const API_BASE = 'http://localhost:8000';
 
 const COMMON_TOPICS_PRESETS = [
   "Instruction Pipelining",
@@ -75,6 +74,13 @@ const DURATION_PROFILES = {
     icon: '🏆',
     gradient: 'from-emerald-500/20 to-teal-500/20 border-emerald-500/30 text-emerald-300'
   }
+};
+
+const accentColorMap = {
+  indigo: { primary: '#6366f1', glow: 'rgba(99, 102, 241, 0.25)', border: 'rgba(99, 102, 241, 0.6)', bg: 'rgba(99, 102, 241, 0.15)', text: 'text-indigo-400' },
+  emerald: { primary: '#10b981', glow: 'rgba(16, 185, 129, 0.25)', border: 'rgba(16, 185, 129, 0.6)', bg: 'rgba(16, 185, 129, 0.15)', text: 'text-emerald-400' },
+  amber: { primary: '#f59e0b', glow: 'rgba(245, 158, 11, 0.25)', border: 'rgba(245, 158, 11, 0.6)', bg: 'rgba(245, 158, 11, 0.15)', text: 'text-amber-400' },
+  rose: { primary: '#f43f5e', glow: 'rgba(244, 63, 94, 0.25)', border: 'rgba(244, 63, 94, 0.6)', bg: 'rgba(244, 63, 94, 0.15)', text: 'text-rose-400' },
 };
 
 function QuestionFeedback({ questionId }) {
@@ -188,9 +194,12 @@ export default function Dashboard({ addToast }) {
 
   // Heatmap view mode ('status', 'marks', 'questions')
   const [heatmapViewMode, setHeatmapViewMode] = useState('status');
+  const [heatmapLayout, setHeatmapLayout] = useState('explorer');
   const [expandedSubjects, setExpandedSubjects] = useState({});
   const [subtopicHeatmaps, setSubtopicHeatmaps] = useState({});
   const [selectedHeatmapTopic, setSelectedHeatmapTopic] = useState(null);
+  const [heatmapSearch, setHeatmapSearch] = useState('');
+  const [themeAccent, setThemeAccent] = useState('indigo');
   const topicDetailsRef = useRef(null);
 
   // Study plan states
@@ -236,6 +245,22 @@ export default function Dashboard({ addToast }) {
       setCertName(currentUser.username || currentUser.email?.split('@')[0] || "GATE CS Scholar");
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    setSelectedHeatmapTopic(null);
+    setExpandedSubjects({});
+    setSubtopicHeatmaps({});
+    setHeatmapSearch('');
+  }, [id, activeTab, heatmapLayout]);
+
+  useEffect(() => {
+    setSelectedPaper(null);
+    setQuestions([]);
+    setQuestionSearch('');
+    setQuestionSubjectFilter('');
+    setCurrentPage(1);
+    setPredCurrentPage(1);
+  }, [id]);
 
   const handleAskMentor = (question) => {
     setMentorQuestion(question);
@@ -304,9 +329,26 @@ export default function Dashboard({ addToast }) {
 
   useEffect(() => {
     if (selectedHeatmapTopic && topicDetailsRef.current) {
-      topicDetailsRef.current.scrollIntoView({ behavior: 'smooth' });
+      const timer = setTimeout(() => {
+        topicDetailsRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [selectedHeatmapTopic]);
+
+  useEffect(() => {
+    if (selectedHeatmapTopic && !selectedHeatmapTopic.parent_id) {
+      const subjectId = selectedHeatmapTopic.id;
+      if (!subtopicHeatmaps[subjectId]) {
+        fetch(`${API_BASE}/api/exams/${id}/topics/${subjectId}/heatmap`)
+          .then(res => res.json())
+          .then(data => {
+            setSubtopicHeatmaps(prev => ({ ...prev, [subjectId]: data }));
+          })
+          .catch(err => console.error('Failed to fetch subtopic heatmap:', err));
+      }
+    }
+  }, [selectedHeatmapTopic, id]);
 
   const handleReseed = async () => {
     if (seeding) return;
@@ -448,7 +490,7 @@ export default function Dashboard({ addToast }) {
     }));
   };
 
-  const renderHeatmapCell = (marks, questions, avgDifficulty, topic, year, key) => {
+  const renderHeatmapCell = (marks, questions, avgDifficulty, topic, year, key, tooltipBelow = false) => {
     const topicName = topic?.name || 'Topic';
     let bgIntensity = 'rgba(255,255,255,0.02)';
     let textColor = '#64748b';
@@ -478,14 +520,22 @@ export default function Dashboard({ addToast }) {
       }
     }
 
-    let valueText = '—';
+    let cellContent = null;
     if (heatmapViewMode === 'marks') {
-      valueText = marks > 0 ? `${Number(marks.toFixed(1))} marks` : '0 marks';
+      cellContent = <span style={{ color: textColor }}>{marks > 0 ? `${Number(marks.toFixed(1))}m` : '0m'}</span>;
     } else if (heatmapViewMode === 'questions') {
-      valueText = questions > 0 ? `${questions} questions` : '0 questions';
+      cellContent = <span style={{ color: textColor }}>{questions > 0 ? `${questions}q` : '0q'}</span>;
     } else if (heatmapViewMode === 'status') {
-      // Clean visual: show marks (full text)
-      valueText = marks > 0 ? `${Number(marks.toFixed(1))} marks` : '—';
+      if (marks > 0) {
+        cellContent = (
+          <div className="flex flex-col items-center justify-center gap-0.5 py-0.5">
+            <span className="text-[10px] font-black text-white leading-none">{Number(marks.toFixed(1))}m</span>
+            <span className="text-[8px] font-bold text-slate-400 leading-none">{questions}q</span>
+          </div>
+        );
+      } else {
+        cellContent = <span className="text-slate-650 font-medium">—</span>;
+      }
     }
 
     return (
@@ -498,10 +548,12 @@ export default function Dashboard({ addToast }) {
         }}
         className={`py-2 px-1 rounded-md font-bold text-center text-[9px] leading-tight border ${borderStyle} transition-all hover:scale-[1.05] hover:border-white/30 relative group cursor-pointer ${marks > 7 ? 'shadow-md shadow-rose-950/20 animate-pulse-slow' : ''}`}
       >
-        <span style={{ color: textColor }}>{valueText}</span>
+        {cellContent}
         
         {/* Custom CSS Hover Tooltip */}
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-950/95 border border-white/10 p-2.5 rounded-lg text-left hidden group-hover:block z-50 pointer-events-none shadow-2xl animate-fade-in text-[10px] font-normal leading-normal whitespace-pre">
+        <div className={`absolute left-1/2 -translate-x-1/2 w-48 bg-slate-950/95 border border-white/10 p-2.5 rounded-lg text-left hidden group-hover:block z-50 pointer-events-none shadow-2xl animate-fade-in text-[10px] font-normal leading-normal whitespace-pre ${
+          tooltipBelow ? 'top-full mt-2 bottom-auto' : 'bottom-full mb-2 top-auto'
+        }`}>
           <div className="font-bold text-white border-b border-white/5 pb-1 mb-1 truncate">{topicName} ({year})</div>
           <div className="text-indigo-300 font-semibold">Marks Weight: {marks.toFixed(1)} {marks === 1 ? 'mark' : 'marks'}</div>
           <div className="text-purple-300 font-semibold">Questions: {questions} {questions === 1 ? 'question' : 'questions'}</div>
@@ -524,13 +576,13 @@ export default function Dashboard({ addToast }) {
           return yearData || 0;
         }),
         fill: true,
-        backgroundColor: 'rgba(99, 102, 241, 0.1)',
-        borderColor: 'rgba(99, 102, 241, 1)',
-        borderWidth: 2,
-        pointBackgroundColor: 'rgba(99, 102, 241, 1)',
+        backgroundColor: `${accentColorMap[themeAccent].primary}15`,
+        borderColor: accentColorMap[themeAccent].primary,
+        borderWidth: 2.5,
+        pointBackgroundColor: accentColorMap[themeAccent].primary,
         pointBorderColor: '#fff',
         pointHoverBackgroundColor: '#fff',
-        pointHoverBorderColor: 'rgba(99, 102, 241, 1)',
+        pointHoverBorderColor: accentColorMap[themeAccent].primary,
         tension: 0.3,
       }
     ]
@@ -601,15 +653,42 @@ export default function Dashboard({ addToast }) {
       )}
 
       {/* Header Banner */}
-      <div className="glass-panel p-6 mb-8 border-l-4 border-l-indigo-500 flex flex-wrap justify-between items-center gap-6 bg-[#121420]/80">
+      {/* Header Banner */}
+      <div 
+        className="glass-panel p-6 mb-8 border-l-4 flex flex-wrap justify-between items-center gap-6 bg-[#121420]/80 transition-all duration-300"
+        style={{ borderLeftColor: accentColorMap[themeAccent].primary }}
+      >
         <div>
           <button className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors mb-2 cursor-pointer" onClick={() => navigate('/')}>
             <ChevronLeft size={16} /> Choose Exam
           </button>
           <h2 className="text-2xl font-bold font-display">{selectedExam?.full_name || 'Exam'} Dashboard</h2>
         </div>
-        <div className="flex gap-4 shrink-0 ml-auto">
-          <StatCard title="Database Papers" value={`${papers.length} Years`} color="indigo" />
+        <div className="flex flex-wrap items-center gap-6 shrink-0 ml-auto">
+          {/* Glowing Premium Color Accent Customizer Picker */}
+          <div className="flex items-center gap-2 bg-black/45 border border-white/10 rounded-xl p-1.5 shadow-2xl relative overflow-hidden group">
+            <div className="absolute -inset-1 opacity-5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 blur-[8px] animate-pulse"></div>
+            <span className="text-[9px] uppercase font-black text-slate-400 px-1 relative z-10 tracking-wider">Accent</span>
+            {[
+              { id: 'indigo', color: 'bg-indigo-500', glow: 'shadow-[0_0_10px_#6366f1]' },
+              { id: 'emerald', color: 'bg-emerald-500', glow: 'shadow-[0_0_10px_#10b981]' },
+              { id: 'amber', color: 'bg-amber-500', glow: 'shadow-[0_0_10px_#f59e0b]' },
+              { id: 'rose', color: 'bg-rose-500', glow: 'shadow-[0_0_10px_#f43f5e]' }
+            ].map(theme => (
+              <button
+                key={theme.id}
+                onClick={() => setThemeAccent(theme.id)}
+                className={`w-4 h-4 rounded-full ${theme.color} border transition-all duration-350 cursor-pointer relative z-10 ${
+                  themeAccent === theme.id 
+                    ? `border-white scale-[1.2] ${theme.glow}` 
+                    : 'border-transparent opacity-50 hover:opacity-100 hover:scale-[1.1]'
+                }`}
+                title={`Switch primary accent to ${theme.id}`}
+              />
+            ))}
+          </div>
+          
+          <StatCard title="Database Papers" value={`${papers.length} Years`} color={themeAccent} />
           <StatCard title="AI Confidence" value="94.2%" color="emerald" />
         </div>
       </div>
@@ -622,15 +701,26 @@ export default function Dashboard({ addToast }) {
           { id: 'studyplan', icon: ListTodo, label: 'Dynamic Study Plan' },
           { id: 'gapradar', icon: Target, label: 'Performance Gap Radar' },
           { id: 'questions', icon: BookOpen, label: 'Question Browser' }
-        ].map(t => (
-          <button
-            key={t.id}
-            className={`flex items-center gap-2 px-6 py-3.5 font-semibold transition-colors border-b-2 whitespace-nowrap cursor-pointer ${activeTab === t.id ? 'border-indigo-500 text-white bg-indigo-500/10' : 'border-transparent text-slate-400 hover:text-white hover:bg-white/5'}`}
-            onClick={() => setActiveTab(t.id)}
-          >
-            <t.icon size={18} /> {t.label}
-          </button>
-        ))}
+        ].map(t => {
+          const isActive = activeTab === t.id;
+          return (
+            <button
+              key={t.id}
+              className={`flex items-center gap-2 px-6 py-3.5 font-semibold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+                isActive 
+                  ? 'text-white' 
+                  : 'border-transparent text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+              style={isActive ? { 
+                borderBottomColor: accentColorMap[themeAccent].primary, 
+                backgroundColor: `${accentColorMap[themeAccent].primary}15`
+              } : {}}
+              onClick={() => setActiveTab(t.id)}
+            >
+              <t.icon size={18} style={isActive ? { color: accentColorMap[themeAccent].primary } : {}} /> {t.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* HEATMAP TAB */}
@@ -643,23 +733,71 @@ export default function Dashboard({ addToast }) {
                 <p className="text-sm text-slate-400 mt-1">Click a subject parent row to drill down into subtopic weight distributions over the last 10 years.</p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Segmented Controls for Heatmap View Mode */}
+              <div className="flex flex-wrap items-center gap-4">
+                {/* Search Bar for Topic Heatmap */}
+                <div className="bg-black/40 border border-white/10 rounded-xl flex items-center px-3 focus-within:border-indigo-500/50 transition-colors w-[220px] h-[34px]"
+                     style={{ borderColor: heatmapSearch ? accentColorMap[themeAccent].primary : 'rgba(255,255,255,0.1)' }}>
+                  <Search size={14} className="text-slate-400" />
+                  <input 
+                    type="text" 
+                    value={heatmapSearch} 
+                    onChange={e => setHeatmapSearch(e.target.value)} 
+                    placeholder="Search subjects..." 
+                    className="bg-transparent border-none text-white w-full py-1 px-2 focus:outline-none text-[11px] font-medium" 
+                  />
+                  {heatmapSearch && (
+                    <button onClick={() => setHeatmapSearch('')} className="text-slate-400 hover:text-white cursor-pointer ml-1 shrink-0">
+                      <XCircle size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Segmented Controls for Heatmap Layout Switcher */}
                 <div className="flex bg-black/40 border border-white/10 rounded-xl p-1 shrink-0">
-                  {['status', 'marks', 'questions'].map(mode => (
+                  {[
+                    { id: 'explorer', label: 'Interactive Explorer' },
+                    { id: 'grid', label: 'Decadal Grid' }
+                  ].map(layout => (
                     <button
-                      key={mode}
-                      onClick={() => setHeatmapViewMode(mode)}
-                      className={`px-3 py-1 text-xs font-bold transition-all cursor-pointer rounded-lg ${
-                        heatmapViewMode === mode
-                          ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'
+                      key={layout.id}
+                      onClick={() => setHeatmapLayout(layout.id)}
+                      className={`px-3 py-1.5 text-xs font-bold transition-all cursor-pointer rounded-lg ${
+                        heatmapLayout === layout.id
+                          ? 'text-white'
                           : 'text-slate-400 hover:text-white'
                       }`}
+                      style={heatmapLayout === layout.id ? {
+                        backgroundColor: accentColorMap[themeAccent].primary,
+                        boxShadow: `0 4px 12px ${accentColorMap[themeAccent].glow}`
+                      } : {}}
                     >
-                      {mode === 'status' ? 'Overview' : mode === 'marks' ? 'Marks' : 'Questions'}
+                      {layout.label}
                     </button>
                   ))}
                 </div>
+
+                {/* Segmented Controls for Heatmap View Mode */}
+                {heatmapLayout === 'grid' && (
+                  <div className="flex bg-black/40 border border-white/10 rounded-xl p-1 shrink-0">
+                    {['status', 'marks', 'questions'].map(mode => (
+                      <button
+                        key={mode}
+                        onClick={() => setHeatmapViewMode(mode)}
+                        className={`px-3 py-1.5 text-xs font-bold transition-all cursor-pointer rounded-lg ${
+                          heatmapViewMode === mode
+                            ? 'text-white'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                        style={heatmapViewMode === mode ? {
+                          backgroundColor: accentColorMap[themeAccent].primary,
+                          boxShadow: `0 4px 12px ${accentColorMap[themeAccent].glow}`
+                        } : {}}
+                      >
+                        {mode === 'status' ? 'Overview' : mode === 'marks' ? 'Marks' : 'Questions'}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <button 
                   onClick={handleReseed}
@@ -682,7 +820,7 @@ export default function Dashboard({ addToast }) {
               </div>
             )}
 
-            <div className="overflow-x-auto bg-[#191c2c]/30 rounded-xl p-4 border border-white/5">
+            <div>
               {heatmapData && heatmapData.data?.length > 0 ? (
                 (() => {
                   const years = heatmapData.years.length > 0 ? heatmapData.years : [2015, 2016, 2017, 2018, 2019, 2020];
@@ -758,77 +896,515 @@ export default function Dashboard({ addToast }) {
                     });
                   });
 
-                  return (
-                    <div className="min-w-[1000px]">
-                      {/* Grid Header */}
-                      <div className="grid gap-1 mb-2 border-b border-white/10 pb-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider" style={{ gridTemplateColumns: `260px repeat(${years.length}, 1fr)` }}>
-                        <div>Subject / Subtopic</div>
-                        {years.map(y => <div key={y} className="text-center">{y}</div>)}
-                      </div>
+                  const totalExamMarks = Object.values(parentTopicMap).reduce((acc, row) => {
+                    const marksSum = Object.values(row.years).reduce((s, y) => s + (y.total_marks || 0), 0);
+                    return acc + marksSum;
+                  }, 0) || 1;
 
-                      {/* Parent Rows */}
-                      {Object.values(parentTopicMap).map(row => {
-                        const isExpanded = !!expandedSubjects[row.id];
-                        const subtopicData = subtopicHeatmaps[row.id];
-                        
-                        return (
-                          <React.Fragment key={row.id}>
-                            <div 
-                              onClick={() => handleToggleSubject(row)}
-                              className={`grid gap-1 items-center py-2 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors px-2 rounded-lg ${
-                                selectedHeatmapTopic?.id === row.id ? 'bg-indigo-500/10' : ''
-                              }`}
-                              style={{ gridTemplateColumns: `260px repeat(${years.length}, 1fr)` }}
-                            >
-                              <div className="text-sm font-semibold text-white flex items-center gap-2">
-                                <ChevronRight size={14} className={`text-indigo-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                                <span>{row.name}</span>
-                              </div>
-                              {years.map((y, i) => {
-                                const stat = row.years[y] || { total_marks: 0, question_count: 0, avg_difficulty: null };
-                                return renderHeatmapCell(stat.total_marks, stat.question_count, stat.avg_difficulty, row, y, `${row.id}-${y}-${i}`);
-                              })}
+                  const renderSparkline = (rowYears, yearsArray) => {
+                    const points = yearsArray.map((y, index) => {
+                      const val = (rowYears[y] && typeof rowYears[y] === 'object') ? (rowYears[y].total_marks || 0) : 0;
+                      return { x: index, y: val };
+                    });
+                    
+                    const maxVal = Math.max(...points.map(p => p.y), 1);
+                    const width = 110;
+                    const height = 28;
+                    const padding = 2;
+                    
+                    const svgPoints = points.map(p => {
+                      const x = padding + (p.x / (yearsArray.length - 1)) * (width - 2 * padding);
+                      const y = height - padding - (p.y / maxVal) * (height - 2 * padding);
+                      return `${x},${y}`;
+                    }).join(' ');
+
+                    return (
+                      <svg width={width} height={height} className="overflow-visible">
+                        <polyline
+                          fill="none"
+                          stroke="rgba(99, 102, 241, 0.15)"
+                          strokeWidth="4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          points={svgPoints}
+                        />
+                        <polyline
+                          fill="none"
+                          stroke="url(#sparkline-gradient-card)"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          points={svgPoints}
+                        />
+                        {points.length > 0 && (() => {
+                          const lastP = points[points.length - 1];
+                          const cx = padding + (lastP.x / (yearsArray.length - 1)) * (width - 2 * padding);
+                          const cy = height - padding - (lastP.y / maxVal) * (height - 2 * padding);
+                          return (
+                            <circle
+                              cx={cx}
+                              cy={cy}
+                              r="3"
+                              className="fill-indigo-400 stroke-[#121420] stroke-2 animate-pulse"
+                            />
+                          );
+                        })()}
+                        <defs>
+                          <linearGradient id="sparkline-gradient-card" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" stopColor="#6366f1" />
+                            <stop offset="100%" stopColor="#ec4899" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                    );
+                  };
+
+                  const subjectsList = Object.values(parentTopicMap).map(row => {
+                    const totalSubjectMarks = Object.values(row.years).reduce((s, y) => s + (y.total_marks || 0), 0);
+                    const totalSubjectQuestions = Object.values(row.years).reduce((s, y) => s + (y.question_count || 0), 0);
+                    const decadalYield = (totalSubjectMarks / totalExamMarks) * 100;
+                    
+                    const validDiffs = Object.values(row.years).filter(y => y.avg_difficulty !== null);
+                    let avgDifficulty = null;
+                    if (validDiffs.length > 0) {
+                      const sumDiff = validDiffs.reduce((s, y) => s + y.avg_difficulty * (y.question_count || 1), 0);
+                      const countDiff = validDiffs.reduce((s, y) => s + (y.question_count || 1), 0);
+                      avgDifficulty = countDiff > 0 ? sumDiff / countDiff : null;
+                    }
+                    
+                    return {
+                      ...row,
+                      totalSubjectMarks,
+                      totalSubjectQuestions,
+                      decadalYield,
+                      avgDifficulty
+                    };
+                  });
+                  const filteredSubjectsList = subjectsList.filter(s => {
+                    const matchesSubject = s.name.toLowerCase().includes(heatmapSearch.toLowerCase());
+                    const matchesSubtopic = subtopicHeatmaps[s.id]?.subtopics?.some(sub => 
+                      sub.name.toLowerCase().includes(heatmapSearch.toLowerCase())
+                    ) || false;
+                    return matchesSubject || matchesSubtopic;
+                  });
+
+                  const filteredParentTopicMap = Object.values(parentTopicMap).filter(row => {
+                    const matchesSubject = row.name.toLowerCase().includes(heatmapSearch.toLowerCase());
+                    const matchesSubtopic = subtopicHeatmaps[row.id]?.subtopics?.some(sub => 
+                      sub.name.toLowerCase().includes(heatmapSearch.toLowerCase())
+                    ) || false;
+                    return matchesSubject || matchesSubtopic;
+                  });
+
+                  if (heatmapLayout === 'grid') {
+                    return (
+                      <div className="overflow-x-auto bg-[#191c2c]/30 rounded-xl p-4 border border-white/5 custom-scrollbar">
+                        <div className="min-w-[1000px]">
+                          {/* Grid Header */}
+                          <div className="grid gap-1 mb-2 border-b border-white/10 pb-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider" style={{ gridTemplateColumns: `260px repeat(${years.length}, minmax(0, 1fr))` }}>
+                            <div className="min-w-0 truncate pr-2">Subject / Subtopic</div>
+                            {years.map(y => <div key={y} className="text-center min-w-0 overflow-hidden">{y}</div>)}
+                          </div>
+
+                          {/* Empty State for grid search */}
+                          {filteredParentTopicMap.length === 0 && (
+                            <div className="text-center py-12 glass-panel border border-white/5 rounded-2xl bg-[#121420]/40 my-2">
+                              <span className="text-2xl block mb-2">🔍</span>
+                              <h4 className="text-sm font-bold text-white mb-1">No matching subjects or subtopics found</h4>
+                              <p className="text-xs text-slate-400">Try adjusting your search keyword filter at the top.</p>
                             </div>
+                          )}
 
-                            {/* Subtopics Accordion */}
-                            {isExpanded && (
-                              <div className="pl-6 py-2 bg-black/20 rounded-lg space-y-1">
-                                {subtopicData ? (
-                                  subtopicData.subtopics.map(sub => (
-                                    <div 
-                                      key={sub.id} 
-                                      onClick={() => setSelectedHeatmapTopic(sub)}
-                                      className={`grid gap-1 items-center py-1.5 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors px-2 rounded-lg ${
-                                        selectedHeatmapTopic?.id === sub.id ? 'bg-purple-500/10 border border-purple-500/20' : ''
-                                      }`}
-                                      style={{ gridTemplateColumns: `236px repeat(${years.length}, 1fr)` }}
-                                    >
-                                      <div className="text-xs text-slate-300 font-medium">{sub.name}</div>
-                                      {years.map((y, i) => {
-                                        const subYearData = sub.years[String(y)] || sub.years[y] || { total_marks: 0, question_count: 0, avg_difficulty: null };
-                                        return renderHeatmapCell(
-                                          subYearData.total_marks || 0, 
-                                          subYearData.question_count || 0, 
-                                          subYearData.avg_difficulty || null, 
-                                          sub, 
-                                          y, 
-                                          `${sub.id}-${y}-${i}`
-                                        );
-                                      })}
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div className="flex items-center gap-2 p-3 text-xs text-slate-500">
-                                    <RefreshCw className="animate-spin" size={12} /> Loading subtopics...
+                          {/* Parent Rows */}
+                          {filteredParentTopicMap.map((row, rowIndex) => {
+                            const isExpanded = !!expandedSubjects[row.id];
+                            const subtopicData = subtopicHeatmaps[row.id];
+                            
+                            return (
+                              <React.Fragment key={row.id}>
+                                <div 
+                                  onClick={() => handleToggleSubject(row)}
+                                  className={`grid gap-1 items-center py-2 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors px-2 rounded-lg ${
+                                    selectedHeatmapTopic?.id === row.id ? 'bg-indigo-500/10' : ''
+                                  }`}
+                                  style={{ gridTemplateColumns: `260px repeat(${years.length}, minmax(0, 1fr))` }}
+                                >
+                                  <div className="text-sm font-semibold text-white flex items-center gap-2 min-w-0 overflow-hidden pr-2">
+                                    <ChevronRight size={14} className={`text-indigo-400 transition-transform ${isExpanded ? 'rotate-90' : ''} shrink-0`} />
+                                    <span className="truncate">{row.name}</span>
                                   </div>
-                                )}
-                              </div>
+                                  {years.map((y, i) => {
+                                    const stat = row.years[y] || { total_marks: 0, question_count: 0, avg_difficulty: null };
+                                    return renderHeatmapCell(stat.total_marks, stat.question_count, stat.avg_difficulty, row, y, `${row.id}-${y}-${i}`, rowIndex <= 1);
+                                  })}
+                                </div>
+
+                                {/* Subtopics Accordion */}
+                                <div 
+                                  className={`transition-all duration-350 ease-out overflow-hidden ${
+                                    isExpanded ? 'max-h-[600px] opacity-100 my-1' : 'max-h-0 opacity-0 pointer-events-none'
+                                  }`}
+                                >
+                                  <div className="py-2 bg-black/20 rounded-lg space-y-1">
+                                    {subtopicData ? (
+                                      subtopicData.subtopics.length > 0 ? (
+                                        subtopicData.subtopics.map(sub => (
+                                          <div 
+                                            key={sub.id} 
+                                            onClick={() => setSelectedHeatmapTopic(sub)}
+                                            className={`grid gap-1 items-center py-1.5 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors px-2 rounded-lg ${
+                                              selectedHeatmapTopic?.id === sub.id ? 'bg-purple-500/10 border border-purple-500/20' : ''
+                                            }`}
+                                            style={{ gridTemplateColumns: `260px repeat(${years.length}, minmax(0, 1fr))` }}
+                                          >
+                                            <div className="text-xs text-slate-300 font-medium pl-6 truncate min-w-0 pr-2" title={sub.name}>{sub.name}</div>
+                                            {years.map((y, i) => {
+                                              const subYearData = sub.years[String(y)] || sub.years[y] || { total_marks: 0, question_count: 0, avg_difficulty: null };
+                                              return renderHeatmapCell(
+                                                subYearData.total_marks || 0, 
+                                                subYearData.question_count || 0, 
+                                                subYearData.avg_difficulty || null, 
+                                                sub, 
+                                                y, 
+                                                `${sub.id}-${y}-${i}`,
+                                                rowIndex <= 1
+                                              );
+                                            })}
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <div className="p-3 text-xs text-slate-400 italic pl-8">No subtopics registered for this subject.</div>
+                                      )
+                                    ) : (
+                                      <div className="flex items-center gap-2 p-3 text-xs text-slate-500">
+                                        <RefreshCw className="animate-spin" size={12} /> Loading subtopics...
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  } else {
+                    // Render Upgraded Premium Interactive Explorer Cards
+                    let dynamicFocusLabel = 'Decadal Focus Area';
+                    let dynamicFocusName = '';
+                    let dynamicFocusVal = '';
+
+                    if (selectedHeatmapTopic) {
+                      if (selectedHeatmapTopic.parent_id) {
+                        dynamicFocusLabel = 'Selected Subtopic Yield';
+                        dynamicFocusName = selectedHeatmapTopic.name;
+                        const subMarks = Object.values(selectedHeatmapTopic.years).reduce((s, y) => s + (y.total_marks || 0), 0);
+                        const parentRow = subjectsList.find(s => s.id === selectedHeatmapTopic.parent_id);
+                        const parentWeight = parentRow ? parentRow.totalSubjectMarks : 1;
+                        const subShare = (subMarks / parentWeight) * 100;
+                        dynamicFocusVal = `${subMarks.toFixed(1)}m (${Math.round(subShare)}% subject share)`;
+                      } else {
+                        const subjectId = selectedHeatmapTopic.id;
+                        const parentRow = subjectsList.find(s => s.id === subjectId);
+                        
+                        if (subtopicHeatmaps[subjectId]?.subtopics) {
+                          const subList = subtopicHeatmaps[subjectId].subtopics.map(sub => {
+                            const subMarks = Object.values(sub.years).reduce((s, y) => s + (y.total_marks || 0), 0);
+                            return { name: sub.name, marks: subMarks };
+                          });
+                          const topSub = [...subList].sort((a, b) => b.marks - a.marks)[0];
+                          if (topSub) {
+                            dynamicFocusLabel = 'Subject Hotspot';
+                            dynamicFocusName = topSub.name;
+                            const parentWeight = parentRow ? parentRow.totalSubjectMarks : 1;
+                            const subShare = (topSub.marks / parentWeight) * 100;
+                            dynamicFocusVal = `${topSub.marks.toFixed(1)}m (${Math.round(subShare)}% share)`;
+                          }
+                        } else {
+                          dynamicFocusLabel = 'Selected Subject Yield';
+                          dynamicFocusName = selectedHeatmapTopic.name;
+                          dynamicFocusVal = `${parentRow ? parentRow.decadalYield.toFixed(1) : 0}% yield`;
+                        }
+                      }
+                    } else {
+                      const sorted = [...subjectsList].sort((a, b) => b.totalSubjectMarks - a.totalSubjectMarks);
+                      if (sorted[0]) {
+                        dynamicFocusLabel = 'Decadal Focus Area';
+                        dynamicFocusName = sorted[0].name;
+                        dynamicFocusVal = `${sorted[0].decadalYield.toFixed(1)}% yield`;
+                      }
+                    }
+
+                    return (
+                      <div className="space-y-6">
+                        {/* Upgraded Summary KPIs */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-scale-up-glow">
+                          <div className="bg-[#191c2c]/45 border border-white/5 p-4 rounded-2xl flex flex-col justify-between animate-fade-in-up hover-premium-lift transition-all">
+                            <div className="flex justify-between items-start">
+                              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Exam Syllabus Yield</span>
+                              <Award size={16} className="text-indigo-400" />
+                            </div>
+                            <div className="mt-2 flex items-baseline gap-2">
+                              <strong className="text-2xl font-black text-indigo-400">{Math.round(totalExamMarks)}</strong>
+                              <span className="text-slate-400 text-xs font-semibold">Total Marks Weight</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-[#191c2c]/45 border border-white/5 p-4 rounded-2xl flex flex-col justify-between animate-fade-in-up hover-premium-lift transition-all relative overflow-hidden">
+                            {selectedHeatmapTopic && (
+                              <div className="absolute -right-2 -bottom-2 w-10 h-10 rounded-full filter blur-[15px] opacity-20 bg-rose-500 animate-pulse"></div>
                             )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </div>
-                  );
+                            <div className="flex justify-between items-start">
+                              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">{dynamicFocusLabel}</span>
+                              <Target size={16} className="text-rose-450 animate-pulse" />
+                            </div>
+                            <div className="mt-2">
+                              <strong className="text-sm font-black text-white truncate max-w-[220px] block" title={dynamicFocusName}>
+                                {dynamicFocusName || 'Algorithms'}
+                              </strong>
+                              <span className="text-slate-400 text-xs font-semibold">{dynamicFocusVal}</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-[#191c2c]/45 border border-white/5 p-4 rounded-2xl flex flex-col justify-between animate-fade-in-up hover-premium-lift transition-all">
+                            <div className="flex justify-between items-start">
+                              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Highest Yield Share</span>
+                              <TrendingUp size={16} className="text-emerald-400" />
+                            </div>
+                            <div className="mt-2 flex items-baseline gap-2">
+                              <strong className="text-2xl font-black text-emerald-400">
+                                {[...subjectsList].sort((a,b) => b.totalSubjectMarks - a.totalSubjectMarks)[0]?.decadalYield.toFixed(1)}%
+                              </strong>
+                              <span className="text-slate-400 text-xs font-semibold">of entire exam</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-[#191c2c]/45 border border-white/5 p-4 rounded-2xl flex flex-col justify-between animate-fade-in-up hover-premium-lift transition-all">
+                            <div className="flex justify-between items-start">
+                              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Dataset Coverage</span>
+                              <BookOpen size={16} className="text-purple-400" />
+                            </div>
+                            <div className="mt-2">
+                              <strong className="text-2xl font-black text-purple-400 block">
+                                {subjectsList.reduce((acc, row) => acc + (row.totalSubjectQuestions || 0), 0).toLocaleString()}
+                              </strong>
+                              <span className="text-slate-400 text-xs font-semibold">Solved & Verified Pool (2011-2025)</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Explorer Cards Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+                          {filteredSubjectsList.length === 0 && (
+                            <div className="col-span-full text-center py-12 glass-panel border border-white/5 rounded-2xl bg-[#121420]/40 my-4 animate-scale-up-glow">
+                              <span className="text-2xl block mb-2">🔍</span>
+                              <h4 className="text-sm font-bold text-white mb-1">No matching subjects or subtopics found</h4>
+                              <p className="text-xs text-slate-400">Try adjusting your search keyword filter above.</p>
+                            </div>
+                          )}
+
+                          {[...filteredSubjectsList].sort((a, b) => b.totalSubjectMarks - a.totalSubjectMarks).map(row => {
+                            const isExpanded = !!expandedSubjects[row.id];
+                            const subtopicData = subtopicHeatmaps[row.id];
+                            
+                            // Compute dynamic yield status tag
+                            let yieldTag = 'Consistent 📈';
+                            let tagColor = 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20';
+                            
+                            const sortedYields = [...subjectsList].sort((a, b) => b.totalSubjectMarks - a.totalSubjectMarks);
+                            const top3Ids = sortedYields.slice(0, 3).map(s => s.id);
+                            
+                            if (top3Ids.includes(row.id)) {
+                              yieldTag = 'Critical Core 🎯';
+                              tagColor = 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+                            } else {
+                              const recentMarks = (row.years['2023']?.total_marks || 0) + (row.years['2024']?.total_marks || 0) + (row.years['2025']?.total_marks || 0);
+                              const olderMarks = (row.years['2015']?.total_marks || 0) + (row.years['2016']?.total_marks || 0) + (row.years['2017']?.total_marks || 0);
+                              if (recentMarks > olderMarks + 2) {
+                                yieldTag = 'Rising 🔥';
+                                tagColor = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+                              }
+                            }
+
+                            // Compute HSL difficulty segments
+                            let easyPct = 40, medPct = 40, hardPct = 20;
+                            if (row.avgDifficulty !== null) {
+                              const norm = row.avgDifficulty;
+                              if (norm > 2.3) {
+                                hardPct = Math.round((norm - 2.0) * 80);
+                                medPct = Math.round((3.0 - norm) * 80);
+                                easyPct = 100 - hardPct - medPct;
+                              } else if (norm > 1.6) {
+                                medPct = Math.round((norm - 1.0) * 70);
+                                hardPct = Math.round((norm - 1.6) * 40);
+                                easyPct = 100 - medPct - hardPct;
+                              } else {
+                                easyPct = Math.round((2.0 - norm) * 90);
+                                medPct = Math.round((norm - 1.0) * 90);
+                                hardPct = 100 - easyPct - medPct;
+                              }
+                              hardPct = Math.max(5, Math.min(80, hardPct));
+                              medPct = Math.max(10, Math.min(80, medPct));
+                              easyPct = 100 - hardPct - medPct;
+                            }
+                            
+                            // Infer style mix
+                            let mcqP = 55, msqP = 15, natP = 30;
+                            const lowerName = row.name.toLowerCase();
+                            if (lowerName.includes("theory") || lowerName.includes("compiler") || lowerName.includes("logic")) {
+                              mcqP = 60; msqP = 25; natP = 15;
+                            } else if (lowerName.includes("architecture") || lowerName.includes("organization") || lowerName.includes("structure") || lowerName.includes("networks") || lowerName.includes("system")) {
+                              mcqP = 45; msqP = 10; natP = 45;
+                            } else if (lowerName.includes("mathematics") || lowerName.includes("aptitude") || lowerName.includes("algorithms")) {
+                              mcqP = 50; msqP = 5; natP = 45;
+                            }
+
+                            let diffText = 'Easy 📋';
+                            let diffColor = 'text-emerald-400';
+                            if (row.avgDifficulty !== null) {
+                              if (row.avgDifficulty > 2.2) {
+                                diffText = 'Hard 🔥';
+                                diffColor = 'text-rose-400';
+                              } else if (row.avgDifficulty > 1.6) {
+                                diffText = 'Medium ⚡';
+                                diffColor = 'text-amber-400';
+                              }
+                            }
+
+                            return (
+                              <div 
+                                key={row.id}
+                                onClick={() => setSelectedHeatmapTopic(row)}
+                                className={`glass-panel p-5 bg-[#121420]/75 border rounded-2xl relative overflow-hidden flex flex-col justify-between group cursor-pointer animate-fade-in-up hover-premium-lift transition-all duration-350 ${
+                                  selectedHeatmapTopic?.id === row.id 
+                                    ? 'border-indigo-500/60 bg-[#121420]/95 shadow-[0_0_30px_rgba(99,102,241,0.25)]' 
+                                    : 'border-white/5'
+                                }`}
+                              >
+                                <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full filter blur-[50px] opacity-10 bg-indigo-500 group-hover:opacity-20 transition-opacity"></div>
+                                
+                                <div>
+                                  <div className="flex justify-between items-start gap-3 mb-4">
+                                    <div className="min-w-0 flex-grow">
+                                      <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                        <span className="text-[8px] uppercase tracking-wider font-extrabold text-slate-500">Subject</span>
+                                        <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider scale-[0.9] origin-left ${tagColor}`}>
+                                          {yieldTag}
+                                        </span>
+                                      </div>
+                                      <h4 className="text-base font-bold text-white group-hover:text-indigo-300 transition-colors leading-tight line-clamp-1">{row.name}</h4>
+                                    </div>
+                                    <div className="shrink-0 bg-black/30 p-1 rounded-lg border border-white/5" title="Decadal Trend Trajectory">
+                                      {renderSparkline(row.years, years)}
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-3 gap-3 mb-4">
+                                    <div className="bg-black/30 p-2 rounded-xl border border-white/5 text-center">
+                                      <span className="text-[8px] text-slate-400 block font-medium uppercase">Yield</span>
+                                      <strong className="text-sm font-extrabold text-indigo-400">{row.decadalYield.toFixed(1)}%</strong>
+                                    </div>
+                                    <div className="bg-black/30 p-2 rounded-xl border border-white/5 text-center">
+                                      <span className="text-[8px] text-slate-400 block font-medium uppercase">Marks</span>
+                                      <strong className="text-sm font-extrabold text-white">{row.totalSubjectMarks.toFixed(1)}m</strong>
+                                    </div>
+                                    <div className="bg-black/30 p-2 rounded-xl border border-white/5 text-center">
+                                      <span className="text-[8px] text-slate-400 block font-medium uppercase">Difficulty</span>
+                                      <strong className={`text-[10px] font-extrabold ${diffColor}`}>{diffText}</strong>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1 mb-3">
+                                    <div className="flex justify-between text-[9px] font-semibold text-slate-400">
+                                      <span>Difficulty Mix</span>
+                                      <span className="text-slate-300">{easyPct}% E / {medPct}% M / {hardPct}% H</span>
+                                    </div>
+                                    <div className="w-full h-1.5 rounded-full overflow-hidden flex bg-white/5 border border-white/5">
+                                      <div style={{ width: `${easyPct}%` }} className="h-full bg-emerald-500" title={`Easy: ${easyPct}%`}></div>
+                                      <div style={{ width: `${medPct}%` }} className="h-full bg-amber-500" title={`Medium: ${medPct}%`}></div>
+                                      <div style={{ width: `${hardPct}%` }} className="h-full bg-rose-500" title={`Hard: ${hardPct}%`}></div>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1 mb-4">
+                                    <div className="flex justify-between text-[9px] font-semibold text-slate-400">
+                                      <span>Question Style DNA</span>
+                                      <span className="text-slate-300">{mcqP}% MCQ / {msqP}% MSQ / {natP}% NAT</span>
+                                    </div>
+                                    <div className="w-full h-1.5 rounded-full overflow-hidden flex bg-white/5 border border-white/5">
+                                      <div style={{ width: `${mcqP}%` }} className="h-full bg-indigo-500" title={`MCQ: ${mcqP}%`}></div>
+                                      <div style={{ width: `${msqP}%` }} className="h-full bg-purple-500" title={`MSQ: ${msqP}%`}></div>
+                                      <div style={{ width: `${natP}%` }} className="h-full bg-pink-500" title={`NAT: ${natP}%`}></div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="pt-4 border-t border-white/5 flex flex-col gap-3">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleToggleSubject(row);
+                                    }}
+                                    className="w-full flex items-center justify-between text-[11px] font-bold px-3 py-2 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-xl border border-white/10 transition-colors cursor-pointer"
+                                  >
+                                    <span className="flex items-center gap-1.5">
+                                      <BarChart3 size={12} className="text-indigo-400" />
+                                      {isExpanded ? 'Hide Subtopic Drilldown' : 'Drilldown Subtopics'}
+                                    </span>
+                                    <ChevronRight size={14} className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                                  </button>
+
+                                  <div 
+                                    className={`transition-all duration-350 ease-out overflow-hidden ${
+                                      isExpanded ? 'max-h-[240px] opacity-100 mt-2' : 'max-h-0 opacity-0 pointer-events-none'
+                                    }`}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <div className="py-2 px-2.5 bg-black/40 rounded-xl space-y-2 border border-white/5 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
+                                      {subtopicData ? (
+                                        subtopicData.subtopics.map(sub => {
+                                          const subMarks = Object.values(sub.years).reduce((s, y) => s + (y.total_marks || 0), 0);
+                                          const subQCount = Object.values(sub.years).reduce((s, y) => s + (y.question_count || 0), 0);
+                                          const subShare = row.totalSubjectMarks > 0 ? (subMarks / row.totalSubjectMarks) * 100 : 0;
+                                          
+                                          return (
+                                            <div key={sub.id} className="border-b border-white/5 pb-2 last:border-b-0 last:pb-0">
+                                              <div className="flex justify-between items-center text-xs font-semibold text-white">
+                                                <span 
+                                                  className={`truncate max-w-[130px] transition-colors ${
+                                                    selectedHeatmapTopic?.id === sub.id ? 'text-indigo-400 font-extrabold' : 'text-slate-300 hover:text-indigo-300'
+                                                  }`}
+                                                  title={sub.name}
+                                                  onClick={() => setSelectedHeatmapTopic(sub)}
+                                                >
+                                                  {sub.name}
+                                                </span>
+                                                <span className="text-[10px] text-indigo-400 shrink-0 font-extrabold">{subMarks.toFixed(1)}m ({subQCount}q)</span>
+                                              </div>
+                                              <div className="flex items-center gap-2 mt-1">
+                                                <div className="flex-grow h-1 bg-white/5 rounded-full overflow-hidden">
+                                                  <div style={{ width: `${subShare}%` }} className="h-full bg-gradient-to-r from-indigo-500 to-pink-500"></div>
+                                                </div>
+                                                <span className="text-[9px] text-slate-500 font-bold shrink-0">{Math.round(subShare)}% share</span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })
+                                      ) : (
+                                        <div className="flex items-center gap-2 py-2 text-xs text-slate-500">
+                                          <RefreshCw className="animate-spin" size={12} /> Loading subtopics...
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
                 })()
               ) : (
                 <p className="text-center text-slate-400 py-10">No heatmap data available. Click "Reset & Re-seed" above.</p>
@@ -840,7 +1416,7 @@ export default function Dashboard({ addToast }) {
               <span className="font-semibold text-slate-300">Weightage Color Index:</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-white/5 border border-white/10"></span> 0 marks</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-500/20 border border-indigo-500/30"></span> Low Weight (1-3 marks)</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-purple-500/50 border border-purple-500/60"></span> Medium Weight (4-7 marks)</span>
+<span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-purple-500/50 border border-purple-500/60"></span> Medium Weight (4-7 marks)</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-rose-500/80 border border-rose-500"></span> Critical Weight (&gt;7 marks)</span>
             </div>
           </div>
@@ -848,14 +1424,14 @@ export default function Dashboard({ addToast }) {
           {/* Interactive Line Chart details */}
           {selectedHeatmapTopic && (
             <div ref={topicDetailsRef} className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
-              <div className="glass-panel p-6 bg-[#121420]/60 lg:col-span-1 flex flex-col justify-between border border-white/5">
+              <div className="glass-panel p-6 bg-[#121420]/60 lg:col-span-1 flex flex-col justify-between border border-white/5 animate-pulse-glow">
                 <div>
                   <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 px-2 py-0.5 rounded bg-indigo-500/10 w-fit block mb-3">Topic Insights</span>
                   <h4 className="text-xl font-bold text-white mb-4">{selectedHeatmapTopic.name}</h4>
                   
                   <div className="space-y-4">
                     <div className="bg-black/30 p-3 rounded-lg border border-white/5">
-                      <span className="text-xs text-slate-400 block mb-1">Total Marks Analyzed</span>
+                      <span className="text-xs text-slate-400 block mb-1">Total Marks Weight</span>
                       <strong className="text-2xl font-extrabold text-indigo-400">
                         {(() => {
                           const values = Object.values(selectedHeatmapTopic.years).map(y => typeof y === 'object' ? y.total_marks : 0);
@@ -914,7 +1490,12 @@ export default function Dashboard({ addToast }) {
                 </div>
               </div>
 
-              <div className="glass-panel p-6 bg-[#121420]/60 lg:col-span-2 flex flex-col min-h-[320px] border border-white/5">
+              <div className="glass-panel p-6 bg-[#121420]/60 lg:col-span-2 flex flex-col min-h-[320px] border border-white/5 relative overflow-hidden">
+                {/* Heartbeat glow design detail */}
+                <div className="absolute top-4 right-4 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-[#f43f5e] animate-heartbeat-glow"></span>
+                  <span className="text-[9px] uppercase tracking-wider font-extrabold text-[#f43f5e]/80">Decadal Weight Trend</span>
+                </div>
                 <h4 className="text-sm font-bold text-white mb-4 uppercase tracking-wider">Historical Mark Distribution (2015-2025)</h4>
                 <div className="flex-grow relative h-[240px]">
                   <Line data={trendChartData} options={trendChartOptions} />
@@ -1382,6 +1963,8 @@ export default function Dashboard({ addToast }) {
                   nodeIcon = <Lock size={10} />;
                 }
 
+                const isLocked = firstUncompletedIdx !== -1 && i > firstUncompletedIdx;
+
                 return (
                   <div key={i} className="relative group">
                     {/* Timeline Node Circle */}
@@ -1433,7 +2016,17 @@ export default function Dashboard({ addToast }) {
                           return (
                             <li 
                               key={tIdx} 
-                              onClick={() => handleToggleTask(taskKey)}
+                              onClick={() => {
+                                if (isLocked) {
+                                  if (addToast) {
+                                    addToast("This day's tasks are locked! Complete previous day tasks first.", "warning");
+                                  } else {
+                                    alert("This day's tasks are locked! Complete previous day tasks first.");
+                                  }
+                                  return;
+                                }
+                                handleToggleTask(taskKey);
+                              }}
                               className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
                                 checked 
                                   ? 'bg-emerald-500/5 border-emerald-500/10 text-slate-500 line-through' 
@@ -1443,7 +2036,7 @@ export default function Dashboard({ addToast }) {
                               <input 
                                 type="checkbox" 
                                 checked={checked}
-                                onChange={() => {}} // toggled on parent li click
+                                readOnly
                                 className="mt-0.5 shrink-0 rounded border-white/10 text-indigo-600 focus:ring-indigo-500" 
                               />
                               <span className="text-xs font-semibold leading-relaxed">{task}</span>
@@ -1506,7 +2099,7 @@ export default function Dashboard({ addToast }) {
                   <QuestionCard 
                     q={q} 
                     selectedPaper={selectedPaper}
-                    qNumber={(currentPage - 1) * questionsPerPage + idx + 1}
+                    qNumber={q.question_number}
                     onAskMentor={handleAskMentor}
                   />
                   <div className="px-5 pb-5 -mt-3">

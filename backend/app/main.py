@@ -1,16 +1,19 @@
 import os
 import json
 import random
+from pathlib import Path
 # pyrefly: ignore [missing-import]
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 # pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
 # pyrefly: ignore [missing-import]
+from fastapi.staticfiles import StaticFiles
+# pyrefly: ignore [missing-import]
 from fastapi.security import OAuth2PasswordRequestForm
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import timedelta
 
 from .database import get_db, engine, Base
@@ -34,6 +37,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Static file serving for question diagram image slices ────────────────────
+_SLICES_DIR = Path(os.path.dirname(os.path.dirname(__file__))) / "data" / "slices"
+_SLICES_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/slices", StaticFiles(directory=str(_SLICES_DIR)), name="slices")
 
 @app.on_event("startup")
 def on_startup():
@@ -767,11 +775,13 @@ def get_gap_radar(exam_id: int, db: Session = Depends(get_db)):
         topper_marks = max_marks_per_year * 1.3  # 30% above average as topper benchmark
         top_scores.append(round(topper_marks, 1))
 
-    # Normalize scores to 0-100 scale for radar chart
+    # Normalize scores to 0-100 scale for radar chart. Scale normalization factor by 1.1
+    # to prevent topper benchmark from touching 100% and avoid chart edge clipping.
     max_val = max(max(user_scores, default=1), max(top_scores, default=1))
     if max_val > 0:
-        user_scores_norm = [round((s / max_val) * 100, 1) for s in user_scores]
-        top_scores_norm = [round((s / max_val) * 100, 1) for s in top_scores]
+        norm_factor = max_val * 1.1
+        user_scores_norm = [round((s / norm_factor) * 100, 1) for s in user_scores]
+        top_scores_norm = [round((s / norm_factor) * 100, 1) for s in top_scores]
     else:
         user_scores_norm = user_scores
         top_scores_norm = top_scores
@@ -787,9 +797,9 @@ def get_gap_radar(exam_id: int, db: Session = Depends(get_db)):
 # --- AI Weakness Chatbot (Syllabus Mentor) ---
 class MentorRequest(BaseModel):
     question_text: str
-    user_answer: str = None
-    correct_answer: str = None
-    topic_name: str = None
+    user_answer: Optional[str] = None
+    correct_answer: Optional[str] = None
+    topic_name: Optional[str] = None
 
 @app.post("/api/mentor", response_model=Dict[str, Any])
 def ai_mentor_explain(req: MentorRequest):
@@ -808,7 +818,7 @@ def ai_mentor_explain(req: MentorRequest):
         }
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
 
     prompt = f"""You are the ExamArchitect AI Mentor — a friendly, expert GATE CS tutor.
 
