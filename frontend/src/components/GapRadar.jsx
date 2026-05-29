@@ -16,7 +16,7 @@ const CustomTooltip = ({ active, payload }) => {
         <p className="text-indigo-400">Your Score: <span className="font-bold">{data.userScore}%</span></p>
         <p className="text-emerald-400">Topper Score: <span className="font-bold">{data.topScore}%</span></p>
         <p className={`mt-1 font-bold ${data.gap > 20 ? 'text-rose-400' : data.gap > 10 ? 'text-amber-400' : 'text-emerald-400'}`}>
-          Gap: {data.gap > 0 ? `${data.gap}% behind` : 'On track!'}
+          Gap: {data.gap > 0 ? `${data.gap.toFixed(1)}% behind` : 'On track!'}
         </p>
       </div>
     );

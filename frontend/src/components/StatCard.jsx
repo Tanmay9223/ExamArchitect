@@ -20,6 +20,16 @@ export default function StatCard({ title, value, color }) {
       border: 'border-emerald-500/30',
       bg: 'bg-emerald-500/10',
     },
+    amber: {
+      text: 'text-amber-400',
+      border: 'border-amber-500/30',
+      bg: 'bg-amber-500/10',
+    },
+    rose: {
+      text: 'text-rose-400',
+      border: 'border-rose-500/30',
+      bg: 'bg-rose-500/10',
+    },
   };
   const styles = colorMap[color] || colorMap.indigo;
 

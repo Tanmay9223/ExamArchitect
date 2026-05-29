@@ -1,15 +1,54 @@
 import React, { useState } from 'react';
 import { X, Send, Bot, Sparkles, BookOpen, Lightbulb, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const API_BASE = 'http://localhost:8000';
 
+const escapeHtml = (unsafe) => {
+  return (unsafe || '')
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
 export default function WeaknessChatbot({ isOpen, onClose, question, onXpEarned }) {
+  const { currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState(null);
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
 
   const handleAskMentor = async (customQuestion = null) => {
+    // 1) Verify user is logged in
+    if (!currentUser) {
+      const errorEntry = {
+        question: customQuestion || 'Explain this question step by step',
+        explanation: 'Please log in to access the AI Syllabus Mentor.',
+        tips: [],
+        xp: 0
+      };
+      setChatHistory(prev => [...prev, errorEntry]);
+      return;
+    }
+
+    // 2) Verify user is PRO or admin. Otherwise, show the requested error message
+    if (currentUser.role !== 'pro' && currentUser.role !== 'admin') {
+      setLoading(true);
+      // Wait a brief simulated latency of 600ms
+      await new Promise(resolve => setTimeout(resolve, 600));
+      const errorEntry = {
+        question: customQuestion || 'Explain this question step by step',
+        explanation: 'Failed to reach the AI Mentor. Please check your connection and try again.',
+        tips: [],
+        xp: 0
+      };
+      setChatHistory(prev => [...prev, errorEntry]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
     const body = {
@@ -25,6 +64,9 @@ export default function WeaknessChatbot({ isOpen, onClose, question, onXpEarned 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
       const data = await res.json();
 
       const newEntry = {
@@ -152,7 +194,7 @@ export default function WeaknessChatbot({ isOpen, onClose, question, onXpEarned 
                   <div
                     className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap mentor-response"
                     dangerouslySetInnerHTML={{
-                      __html: entry.explanation
+                      __html: escapeHtml(entry.explanation)
                         .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')
                         .replace(/\n/g, '<br/>')
                     }}

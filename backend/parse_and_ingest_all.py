@@ -358,7 +358,7 @@ def generate_synthetic(year: int, existing_q_nums: set = None, target_count: int
 
             questions.append({
                 "question_number": q_num,
-                "question_text": f"[GATE CS {year} Q{q_num}] {subject} ({chapter}). What is the core theorem or time complexity associated with this topic?{options_str}",
+                "question_text": f"What is the core theorem or time complexity associated with this topic?{options_str}",
                 "marks": marks,
                 "question_style": q_style,
                 "correct_answer": correct,

@@ -37,7 +37,7 @@ class AITagger:
         }
         Do not include any other text outside the JSON block. Ensure it is valid JSON.
         """
-        self.model = genai.GenerativeModel('gemini-1.5-pro') if api_key else None
+        self.model = genai.GenerativeModel('gemini-2.5-pro') if api_key else None
 
     def tag_question_image(self, image_path: str) -> Dict[str, Any]:
         """
