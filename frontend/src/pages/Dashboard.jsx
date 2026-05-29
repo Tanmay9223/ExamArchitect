@@ -979,6 +979,7 @@ export default function Dashboard({ addToast }) {
                       decadalYield,
                       avgDifficulty
                     };
+                  });
                   const filteredSubjectsList = subjectsList.filter(s => {
                     const matchesSubject = s.name.toLowerCase().includes(heatmapSearch.toLowerCase());
                     const matchesSubtopic = subtopicHeatmaps[s.id]?.subtopics?.some(sub => 
@@ -1421,6 +1422,81 @@ export default function Dashboard({ addToast }) {
           </div>
 
           {/* Interactive Line Chart details */}
+          {selectedHeatmapTopic && (
+            <div ref={topicDetailsRef} className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+              <div className="glass-panel p-6 bg-[#121420]/60 lg:col-span-1 flex flex-col justify-between border border-white/5 animate-pulse-glow">
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 px-2 py-0.5 rounded bg-indigo-500/10 w-fit block mb-3">Topic Insights</span>
+                  <h4 className="text-xl font-bold text-white mb-4">{selectedHeatmapTopic.name}</h4>
+                  
+                  <div className="space-y-4">
+                    <div className="bg-black/30 p-3 rounded-lg border border-white/5">
+                      <span className="text-xs text-slate-400 block mb-1">Total Marks Weight</span>
+                      <strong className="text-2xl font-extrabold text-indigo-400">
+                        {(() => {
+                          const values = Object.values(selectedHeatmapTopic.years).map(y => typeof y === 'object' ? y.total_marks : 0);
+                          const total = values.reduce((a, b) => a + b, 0);
+                          return values.length > 0 ? `${total.toFixed(1)} ${total === 1 ? 'mark' : 'marks'}` : '0 marks';
+                        })()}
+                      </strong>
+                    </div>
+
+                    <div className="bg-black/30 p-3 rounded-lg border border-white/5">
+                      <span className="text-xs text-slate-400 block mb-1 font-medium">Historical Questions</span>
+                      <strong className="text-xl font-extrabold text-white">
+                        {(() => {
+                          const values = Object.values(selectedHeatmapTopic.years).map(y => typeof y === 'object' ? y.question_count : 0);
+                          const totalQ = values.length > 0 ? values.reduce((a, b) => a + b, 0) : 0;
+                          return `${totalQ} ${totalQ === 1 ? 'question' : 'questions'}`;
+                        })()}
+                      </strong>
+                    </div>
+
+                    <div className="bg-black/30 p-3 rounded-lg border border-white/5">
+                      <span className="text-xs text-slate-400 block mb-1 font-medium">Average Difficulty</span>
+                      <strong className="text-xl font-extrabold text-amber-400">
+                        {(() => {
+                          const values = Object.values(selectedHeatmapTopic.years).filter(y => typeof y === 'object' && y !== null && y.avg_difficulty !== null && y.avg_difficulty !== undefined && y.avg_difficulty !== 'N/A');
+                          if (values.length === 0) return 'N/A';
+                          const sum = values.reduce((acc, y) => acc + (parseFloat(y.avg_difficulty) * (y.question_count || 1)), 0);
+                          const count = values.reduce((acc, y) => acc + (y.question_count || 1), 0);
+                          if (count === 0) return 'N/A';
+                          const avg = sum / count;
+                          return avg > 2.3 ? 'Hard 🔥' : avg > 1.6 ? 'Medium ⚡' : 'Easy 📋';
+                        })()}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  <div className="text-[10px] text-slate-400 leading-normal bg-white/5 p-2 rounded-lg border border-white/5">
+                    💡 Tagging as weakness prioritizes this topic at the top of your custom study plan.
+                  </div>
+                  <button 
+                    onClick={() => handleToggleWeaknessTag(selectedHeatmapTopic.name)}
+                    className="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-2.5 px-4 rounded-xl border border-white/10 text-xs transition-colors cursor-pointer"
+                  >
+                    {studyPlanWeaknesses.split(',').map(s => s.trim().toLowerCase()).includes(selectedHeatmapTopic.name.toLowerCase())
+                      ? '✓ Tagged as Weakness Focus'
+                      : '+ Tag as Weakness Focus'}
+                  </button>
+                  <button 
+                    onClick={() => setSelectedHeatmapTopic(null)}
+                    className="w-full text-slate-400 hover:text-white text-xs font-semibold py-1.5 transition-colors cursor-pointer"
+                  >
+                    Close Details
+                  </button>
+                </div>
+              </div>
+
+              <div className="glass-panel p-6 bg-[#121420]/60 lg:col-span-2 flex flex-col min-h-[320px] border border-white/5 relative overflow-hidden">
+                {/* Heartbeat glow design detail */}
+                <div className="absolute top-4 right-4 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-[#f43f5e] animate-heartbeat-glow"></span>
+                  <span className="text-[9px] uppercase tracking-wider font-extrabold text-[#f43f5e]/80">Decadal Weight Trend</span>
+                </div>
+                <h4 className="text-sm font-bold text-white mb-4 uppercase tracking-wider">Historical Mark Distribution (2015-2025)</h4>
                 <div className="flex-grow relative h-[240px]">
                   <Line data={trendChartData} options={trendChartOptions} />
                 </div>
