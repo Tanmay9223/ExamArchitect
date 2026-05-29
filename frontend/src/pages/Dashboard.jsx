@@ -73,7 +73,8 @@ const DURATION_PROFILES = {
     desc: 'Full curriculum track with multiple spaced-repetition loops and revision sheets.',
     icon: '🏆',
     gradient: 'from-emerald-500/20 to-teal-500/20 border-emerald-500/30 text-emerald-300'
-  };
+  }
+};
 
 const accentColorMap = {
   indigo: { primary: '#6366f1', glow: 'rgba(99, 102, 241, 0.25)', border: 'rgba(99, 102, 241, 0.6)', bg: 'rgba(99, 102, 241, 0.15)', text: 'text-indigo-400' },
