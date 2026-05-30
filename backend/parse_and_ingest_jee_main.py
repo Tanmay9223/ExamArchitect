@@ -453,7 +453,7 @@ def main():
             else:
                 print(f"Synthetic ({total_q} Qs)")
 
-        print(f"\n  {'─' * 55}")
+        print(f"\n  {'-' * 55}")
         print(f"  Total: {total_papers} papers, {total_questions} questions")
         print(f"  Real text extractions: {real_extractions}/{total_papers}")
 

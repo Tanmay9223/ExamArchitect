@@ -59,7 +59,11 @@ export default function GithubGlobe({ width = 450, height = 450 }) {
       { lat: 51.5074, lng: -0.1278, color: '#10b981', name: 'London' },      // London
       { lat: 35.6762, lng: 139.6503, color: '#a855f7', name: 'Tokyo' },       // Tokyo
       { lat: 12.9716, lng: 77.5946, color: '#ec4899', name: 'Bengaluru' },    // Bengaluru
-      { lat: -33.8688, lng: 151.2093, color: '#06b6d4', name: 'Sydney' }      // Sydney
+      { lat: -33.8688, lng: 151.2093, color: '#06b6d4', name: 'Sydney' },     // Sydney
+      { lat: 48.8566, lng: 2.3522, color: '#10b981', name: 'Paris' },         // Paris
+      { lat: 1.3521, lng: 103.8198, color: '#ec4899', name: 'Singapore' },    // Singapore
+      { lat: 25.2048, lng: 55.2708, color: '#06b6d4', name: 'Dubai' },        // Dubai
+      { lat: -23.5505, lng: -46.6333, color: '#f59e0b', name: 'São Paulo' }   // São Paulo
     ];
 
     // Generate connections
@@ -68,7 +72,17 @@ export default function GithubGlobe({ width = 450, height = 450 }) {
       { startLat: 40.7128, startLng: -74.0060, endLat: 12.9716, endLng: 77.5946, color: '#818cf8', altitude: 0.3 },
       { startLat: 51.5074, startLng: -0.1278, endLat: 35.6762, endLng: 139.6503, color: '#ec4899', altitude: 0.28 },
       { startLat: 12.9716, startLng: 77.5946, endLat: -33.8688, endLng: 151.2093, color: '#06b6d4', altitude: 0.22 },
-      { startLat: 35.6762, startLng: 139.6503, endLat: 37.7749, endLng: -122.4194, color: '#f59e0b', altitude: 0.32 }
+      { startLat: 35.6762, startLng: 139.6503, endLat: 37.7749, endLng: -122.4194, color: '#f59e0b', altitude: 0.32 },
+      // Extra network connections (lines) to make the globe look much more high-tech & connected
+      { startLat: 48.8566, startLng: 2.3522, endLat: 40.7128, endLng: -74.0060, color: '#10b981', altitude: 0.24 },
+      { startLat: 51.5074, startLng: -0.1278, endLat: 25.2048, endLng: 55.2708, color: '#06b6d4', altitude: 0.26 },
+      { startLat: 1.3521, lng: 103.8198, endLat: 12.9716, endLng: 77.5946, color: '#ec4899', altitude: 0.18 },
+      { startLat: 1.3521, lng: 103.8198, endLat: 35.6762, endLng: 139.6503, color: '#a855f7', altitude: 0.2 },
+      { startLat: -23.5505, lng: -46.6333, endLat: 40.7128, endLng: -74.0060, color: '#f59e0b', altitude: 0.35 },
+      { startLat: -33.8688, lng: 151.2093, endLat: 35.6762, endLng: 139.6503, color: '#06b6d4', altitude: 0.28 },
+      { startLat: 25.2048, lng: 55.2708, endLat: 12.9716, endLng: 77.5946, color: '#818cf8', altitude: 0.15 },
+      { startLat: 48.8566, lng: 2.3522, endLat: 1.3521, endLng: 103.8198, color: '#10b981', altitude: 0.32 },
+      { startLat: 37.7749, startLng: -122.4194, endLat: -23.5505, endLng: -46.6333, color: '#f59e0b', altitude: 0.38 }
     ];
 
     // Configure points (markers)
@@ -94,7 +108,7 @@ export default function GithubGlobe({ width = 450, height = 450 }) {
       .then(countries => {
         globe
           .hexPolygonsData(countries.features)
-          .hexPolygonResolution(3)
+          .hexPolygonResolution(2)
           .hexPolygonMargin(0.6)
           .hexPolygonUseDots(true) // Render land as dots matching GitHub globe style
           .hexPolygonColor(() => 'rgba(99, 102, 241, 0.45)'); // Semi-transparent indigo

@@ -13,12 +13,14 @@ export default function ToastContainer({ toasts, onDismiss }) {
             pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border backdrop-blur-md cursor-pointer transition-all animate-fade-in
             ${toast.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : ''}
             ${toast.type === 'error' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' : ''}
+            ${toast.type === 'warning' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : ''}
             ${toast.type === 'info' ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' : ''}
           `}
           onClick={() => onDismiss(toast.id)}
         >
           {toast.type === 'success' && <CheckCircle size={18} />}
           {toast.type === 'error' && <AlertTriangle size={18} />}
+          {toast.type === 'warning' && <AlertTriangle size={18} />}
           {toast.type === 'info' && <RefreshCw size={18} />}
           <span className="font-medium text-sm">{toast.message}</span>
         </div>

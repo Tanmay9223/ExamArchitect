@@ -218,9 +218,9 @@ export default function Home() {
       {/* Title: ExamArchitect — Statistical GATE Exam Analytics | Predict. Prepare. Excel. */}
 
       {/* ── Background Ribbons ────────────────────────────────────────────── */}
-      <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden="true">
+      <div className="fixed inset-0 z-30 pointer-events-none" aria-hidden="true">
         <Ribbons
-          backgroundColor={[18 / 255, 15 / 255, 23 / 255, 1]}
+          backgroundColor={[0, 0, 0, 0]}
           baseThickness={28}
           colors={['#615fff']}
           speedMultiplier={0.45}

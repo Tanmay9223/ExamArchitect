@@ -23,6 +23,27 @@ function parseOptions(text) {
   return null;
 }
 
+function cleanQuestionText(text) {
+  if (!text) return '';
+  let clean = text.trim();
+  
+  // Strip starting question number prefix like "Q.60", "Q. 3", "Q.64", etc.
+  clean = clean.replace(/^\s*Q\s*\.?\s*\d+\s*[\r\n]*/i, '');
+  
+  // Strip exam name lines from beginning
+  const examLinesRegex = /^\s*(?:GATE|JEE[- ]?Main|NEET(?:[- ]?UG)?|UPSC(?:[- ]?CSE)?)\s*(?:\d{4})?\s*(?:Computer Science|Physics|Chemistry|History|Biology)?.*[\r\n]+/gi;
+  clean = clean.replace(examLinesRegex, '');
+  
+  // Strip common subject or exam header suffixes
+  clean = clean.replace(/^\s*(?:Computer Science and Information Technology \(CS\)|General Aptitude|CS)[\r\n]+/gi, '');
+
+  // Strip trailing "Page X of Y" or "Page X"
+  clean = clean.replace(/[\r\n]+\s*(?:CS\s*)?Page\s*\d+\s*of\s*\d+\s*$/gi, '');
+  clean = clean.replace(/[\r\n]+\s*(?:CS\s*)?Page\s*\d+\s*$/gi, '');
+  
+  return clean.trim();
+}
+
 export function checkNatCorrectness(userInput, correctAnswer) {
   if (!userInput || !correctAnswer) return false;
   const userStr = userInput.trim().replace(/\s+/g, '');
@@ -132,7 +153,8 @@ export default function QuestionCard({
   const showAnswer = controlledShowAnswer !== undefined ? controlledShowAnswer : localShowAnswer;
 
   const parsed = parseOptions(q.question_text);
-  const cleanText = parsed ? parsed.cleanText : q.question_text;
+  const rawCleanText = parsed ? parsed.cleanText : q.question_text;
+  const cleanText = cleanQuestionText(rawCleanText);
   const options = parsed ? parsed.options : [];
   const diffLabel = q.difficulty === 'H' ? 'Hard' : q.difficulty === 'M' ? 'Medium' : 'Easy';
 
@@ -217,7 +239,7 @@ export default function QuestionCard({
           )}
           {!selectedPaper && q.paper_year && (
             <span className="text-xs px-2 py-0.5 border border-white/10 rounded text-slate-300">
-              GATE CS {q.paper_year}
+              {(q.exam_name ? q.exam_name.replace('-', ' ') : 'GATE CS')} {q.paper_year}
             </span>
           )}
           <span className="text-xs px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded font-semibold">
@@ -243,160 +265,172 @@ export default function QuestionCard({
 
       {/* Body */}
       <div className="p-5">
-        <p className="text-slate-200 leading-relaxed whitespace-pre-wrap font-medium">{cleanText}</p>
+        <div className={q.has_diagram && q.diagram_path ? "grid grid-cols-1 lg:grid-cols-12 gap-6" : ""}>
+          <div className={q.has_diagram && q.diagram_path ? "lg:col-span-8 flex flex-col justify-between" : ""}>
+            <div>
+              <p className="text-slate-200 leading-relaxed whitespace-pre-wrap font-medium">{cleanText}</p>
 
-        {/* Options for MCQ / MSQ */}
-        {options.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-5">
-            {options.map((opt, oIdx) => {
-              const selected = isSelected(opt.label);
-              const isCorrectOpt = correctAnswersList.includes(opt.label);
-              
-              let borderClass = 'border-white/10 hover:border-white/20 bg-white/5';
-              let labelBg = 'bg-white/10 text-indigo-300';
+              {/* Options for MCQ / MSQ */}
+              {options.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-5">
+                  {options.map((opt, oIdx) => {
+                    const selected = isSelected(opt.label);
+                    const isCorrectOpt = correctAnswersList.includes(opt.label);
+                    
+                    let borderClass = 'border-white/10 hover:border-white/20 bg-white/5';
+                    let labelBg = 'bg-white/10 text-indigo-300';
 
-              if (selected) {
-                borderClass = 'border-indigo-500/50 bg-indigo-500/10';
-                labelBg = 'bg-indigo-500 text-white';
-              }
+                    if (selected) {
+                      borderClass = 'border-indigo-500/50 bg-indigo-500/10';
+                      labelBg = 'bg-indigo-500 text-white';
+                    }
 
-              if (showAnswer) {
-                if (isCorrectOpt) {
-                  borderClass = 'border-emerald-500 bg-emerald-500/10';
-                  labelBg = 'bg-emerald-500 text-white';
-                } else if (selected) {
-                  borderClass = 'border-rose-500 bg-rose-500/10';
-                  labelBg = 'bg-rose-500 text-white';
-                }
-              }
+                    if (showAnswer) {
+                      if (isCorrectOpt) {
+                        borderClass = 'border-emerald-500 bg-emerald-500/10';
+                        labelBg = 'bg-emerald-500 text-white';
+                      } else if (selected) {
+                        borderClass = 'border-rose-500 bg-rose-500/10';
+                        labelBg = 'bg-rose-500 text-white';
+                      }
+                    }
 
-              return (
-                <button
-                  key={oIdx}
-                  disabled={showAnswer}
-                  onClick={() => handleSelectOption(opt.label)}
-                  className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all ${borderClass} ${
-                    !showAnswer ? 'cursor-pointer active:scale-[0.99]' : 'cursor-default'
-                  }`}
-                >
-                  <span className={`font-bold rounded-md px-2 py-0.5 text-sm ${labelBg} shrink-0`}>
-                    {opt.label}
+                    return (
+                      <button
+                        key={oIdx}
+                        disabled={showAnswer}
+                        onClick={() => handleSelectOption(opt.label)}
+                        className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all ${borderClass} ${
+                          !showAnswer ? 'cursor-pointer active:scale-[0.99]' : 'cursor-default'
+                        }`}
+                      >
+                        <span className={`font-bold rounded-md px-2 py-0.5 text-sm ${labelBg} shrink-0`}>
+                          {opt.label}
+                        </span>
+                        <span className="text-slate-300 text-sm leading-relaxed">{opt.text}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (q.question_style === 'MCQ' || q.question_style === 'MSQ') ? (
+                <div className="mt-5 space-y-2">
+                  <span className="block text-xs text-slate-400 mb-1.5 font-bold uppercase tracking-wider">
+                    Select Option(s) (Fallback Buttons)
                   </span>
-                  <span className="text-slate-300 text-sm leading-relaxed">{opt.text}</span>
-                </button>
-              );
-            })}
-          </div>
-        ) : (q.question_style === 'MCQ' || q.question_style === 'MSQ') ? (
-          <div className="mt-5 space-y-2">
-            <span className="block text-xs text-slate-400 mb-1.5 font-bold uppercase tracking-wider">
-              Select Option(s) (Fallback Buttons)
-            </span>
-            <div className="flex flex-wrap gap-3">
-              {['A', 'B', 'C', 'D'].map((label) => {
-                const selected = isSelected(label);
-                const isCorrectOpt = correctAnswersList.includes(label);
-                
-                let borderClass = 'border-white/10 hover:border-white/20 bg-white/5';
-                let labelBg = 'bg-white/10 text-indigo-300';
+                  <div className="flex flex-wrap gap-3">
+                    {['A', 'B', 'C', 'D'].map((label) => {
+                      const selected = isSelected(label);
+                      const isCorrectOpt = correctAnswersList.includes(label);
+                      
+                      let borderClass = 'border-white/10 hover:border-white/20 bg-white/5';
+                      let labelBg = 'bg-white/10 text-indigo-300';
 
-                if (selected) {
-                  borderClass = 'border-indigo-500/50 bg-indigo-500/10';
-                  labelBg = 'bg-indigo-500 text-white';
-                }
+                      if (selected) {
+                        borderClass = 'border-indigo-500/50 bg-indigo-500/10';
+                        labelBg = 'bg-indigo-500 text-white';
+                      }
 
-                if (showAnswer) {
-                  if (isCorrectOpt) {
-                    borderClass = 'border-emerald-500 bg-emerald-500/10';
-                    labelBg = 'bg-emerald-500 text-white';
-                  } else if (selected) {
-                    borderClass = 'border-rose-500 bg-rose-500/10';
-                    labelBg = 'bg-rose-500 text-white';
-                  }
-                }
+                      if (showAnswer) {
+                        if (isCorrectOpt) {
+                          borderClass = 'border-emerald-500 bg-emerald-500/10';
+                          labelBg = 'bg-emerald-500 text-white';
+                        } else if (selected) {
+                          borderClass = 'border-rose-500 bg-rose-500/10';
+                          labelBg = 'bg-rose-500 text-white';
+                        }
+                      }
 
-                return (
-                  <button
-                    key={label}
-                    disabled={showAnswer}
-                    onClick={() => handleSelectOption(label)}
-                    className={`flex items-center justify-center w-12 h-12 rounded-lg border text-base font-bold transition-all ${borderClass} ${
-                      !showAnswer ? 'cursor-pointer active:scale-[0.95]' : 'cursor-default'
-                    }`}
-                  >
-                    <span className={`rounded-md px-2 py-0.5 text-sm ${labelBg}`}>
-                      {label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
+                      return (
+                        <button
+                          key={label}
+                          disabled={showAnswer}
+                          onClick={() => handleSelectOption(label)}
+                          className={`flex items-center justify-center w-12 h-12 rounded-lg border text-base font-bold transition-all ${borderClass} ${
+                            !showAnswer ? 'cursor-pointer active:scale-[0.95]' : 'cursor-default'
+                          }`}
+                        >
+                          <span className={`rounded-md px-2 py-0.5 text-sm ${labelBg}`}>
+                            {label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
 
-        {/* Numerical Answer Type (NAT) input */}
-        {q.question_style === 'NAT' && (
-          <div className="mt-5 max-w-xs">
-            <label className="block text-xs text-slate-400 mb-1.5 font-bold uppercase tracking-wider">
-              Enter Numeric Value
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                disabled={showAnswer}
-                value={typeof currentAnswer === 'string' ? currentAnswer : ''}
-                onChange={e => handleNatChange(e.target.value)}
-                placeholder="e.g. 12.5"
-                className={`w-full bg-black/40 border rounded-lg py-2 px-3 text-white outline-none transition-all ${
-                  showAnswer
-                    ? isNatCorrect
-                      ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300'
-                      : 'border-rose-500 bg-rose-500/10 text-rose-300'
-                    : 'border-white/10 focus:border-indigo-500'
-                }`}
-              />
-              {showAnswer && (
-                <div className="absolute right-3 top-2.5">
-                  {isNatCorrect ? (
-                    <Check className="text-emerald-400" size={18} />
-                  ) : (
-                    <X className="text-rose-400" size={18} />
-                  )}
+              {/* Numerical Answer Type (NAT) input */}
+              {q.question_style === 'NAT' && (
+                <div className="mt-5 max-w-xs">
+                  <label className="block text-xs text-slate-400 mb-1.5 font-bold uppercase tracking-wider">
+                    Enter Numeric Value
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      disabled={showAnswer}
+                      value={typeof currentAnswer === 'string' ? currentAnswer : ''}
+                      onChange={e => handleNatChange(e.target.value)}
+                      placeholder="e.g. 12.5"
+                      className={`w-full bg-black/40 border rounded-lg py-2 px-3 text-white outline-none transition-all ${
+                        showAnswer
+                          ? isNatCorrect
+                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300'
+                            : 'border-rose-500 bg-rose-500/10 text-rose-300'
+                          : 'border-white/10 focus:border-indigo-500'
+                      }`}
+                    />
+                    {showAnswer && (
+                      <div className="absolute right-3 top-2.5">
+                        {isNatCorrect ? (
+                          <Check className="text-emerald-400" size={18} />
+                        ) : (
+                          <X className="text-rose-400" size={18} />
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
           </div>
-        )}
 
-
-        {q.has_diagram && (
-          q.diagram_path ? (
-            <div className="mt-4">
-              <div className="relative group cursor-zoom-in w-fit" onClick={() => setShowImageModal(true)}>
-                <img
-                  src={`http://localhost:8000${q.diagram_path}`}
-                  alt={`Diagram for Q.${q.question_number}`}
-                  style={{ maxWidth: '100%', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}
-                  onError={(e) => {
-                    // If image fails to load, fall back to text banner
-                    e.target.style.display = 'none';
-                    e.target.parentNode.nextSibling.style.display = 'flex';
-                  }}
-                />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-semibold rounded-lg pointer-events-none">
-                  <ZoomIn size={16} /> Click to expand diagram
+          {q.has_diagram && (
+            q.diagram_path ? (
+              <div className="lg:col-span-4 flex flex-col items-center justify-start border-t lg:border-t-0 lg:border-l border-white/5 pt-4 lg:pt-0 lg:pl-6 w-full">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2 self-start">
+                  Reference Diagram
+                </span>
+                <div 
+                  className="relative group cursor-zoom-in border border-white/10 rounded-xl overflow-hidden bg-black/20 p-2 flex items-center justify-center max-h-[280px] w-full"
+                  onClick={() => setShowImageModal(true)}
+                >
+                  <img
+                    src={`http://localhost:8000${q.diagram_path}`}
+                    alt={`Diagram for Q.${q.question_number}`}
+                    className="max-h-[240px] max-w-full rounded-lg object-contain transition-transform group-hover:scale-[1.02]"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.parentNode.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-semibold rounded-lg pointer-events-none">
+                    <ZoomIn size={16} /> Expand Diagram
+                  </div>
+                </div>
+                <div className="mt-2 hidden items-center gap-2 text-amber-500/80 text-xs bg-amber-500/5 border border-amber-500/10 p-2.5 rounded-lg w-full justify-center">
+                  <Image size={14} /> Diagram image unavailable
                 </div>
               </div>
-              <div className="mt-2 hidden items-center gap-2 text-amber-500/80 text-xs bg-amber-500/5 border border-amber-500/10 p-2.5 rounded-lg w-fit">
-                <Image size={14} /> Diagram image unavailable — refer to standard paper
+            ) : (
+              <div className="lg:col-span-4 flex flex-col items-center justify-start border-t lg:border-t-0 lg:border-l border-white/5 pt-4 lg:pt-0 lg:pl-6 w-full">
+                <div className="flex items-center gap-2 text-amber-500/80 text-xs bg-amber-500/5 border border-amber-500/10 p-2.5 rounded-lg w-full justify-center">
+                  <Image size={14} /> Contains diagram / graphic content (Refer to standard papers if missing)
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="mt-4 flex items-center gap-2 text-amber-500/80 text-xs bg-amber-500/5 border border-amber-500/10 p-2.5 rounded-lg w-fit">
-              <Image size={14} /> Contains diagram / graphic content (Refer to standard papers if missing)
-            </div>
-          )
-        )}
+            )
+          )}
+        </div>
 
 
 

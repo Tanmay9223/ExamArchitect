@@ -400,7 +400,20 @@ export default function Dashboard({ addToast }) {
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.detail || 'Failed to generate plan');
+        let detailMsg = 'Failed to generate plan';
+        if (payload.detail) {
+          if (typeof payload.detail === 'string') {
+            detailMsg = payload.detail;
+          } else if (Array.isArray(payload.detail)) {
+            detailMsg = payload.detail.map(err => {
+              const field = err.loc && err.loc.length > 1 ? err.loc.slice(1).join('.') : '';
+              return field ? `${field}: ${err.msg}` : err.msg;
+            }).join(', ');
+          } else if (typeof payload.detail === 'object') {
+            detailMsg = payload.detail.message || JSON.stringify(payload.detail);
+          }
+        }
+        throw new Error(detailMsg);
       }
       const data = await res.json();
       setStudyPlan(data);
@@ -685,11 +698,11 @@ export default function Dashboard({ addToast }) {
       {/* Tabs */}
       <div className="flex border-b border-white/5 mb-8 overflow-x-auto">
         {[
-          { id: 'heatmap', icon: BarChart3, label: 'Topic Heatmap' },
-          { id: 'predictions', icon: TrendingUp, label: 'AI Predictions' },
-          { id: 'studyplan', icon: ListTodo, label: 'Dynamic Study Plan' },
-          { id: 'gapradar', icon: Target, label: 'Performance Gap Radar' },
-          { id: 'questions', icon: BookOpen, label: 'Question Browser' }
+          { id: 'heatmap', icon: BarChart3, label: 'High-Yield Topics (Heatmap)' },
+          { id: 'predictions', icon: TrendingUp, label: 'What to Study (AI Predictions)' },
+          { id: 'studyplan', icon: ListTodo, label: 'Daily Study Planner' },
+          { id: 'gapradar', icon: Target, label: 'Strengths & Weaknesses Tracker' },
+          { id: 'questions', icon: BookOpen, label: 'Practice Questions' }
         ].map(t => {
           const isActive = activeTab === t.id;
           return (
@@ -1732,9 +1745,9 @@ export default function Dashboard({ addToast }) {
                       <div
                         key={d}
                         onClick={() => setStudyPlanDays(d)}
-                        className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between h-32 ${
+                        className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between h-24 ${
                           isSelected 
-                            ? `bg-gradient-to-br ${profile.gradient} shadow-[0_0_15px_rgba(99,102,241,0.15)] scale-[1.02] border-indigo-500` 
+                            ? `bg-gradient-to-br ${profile.gradient} shadow-[0_0_12px_rgba(99,102,241,0.15)] scale-[1.02] border-indigo-500` 
                             : 'bg-black/20 border-white/5 hover:border-white/10 hover:bg-black/30 text-slate-400'
                         }`}
                       >
@@ -1810,11 +1823,17 @@ export default function Dashboard({ addToast }) {
                         <button
                           key={preset}
                           onClick={() => handleToggleWeaknessTag(preset)}
-                          className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
-                            isActive 
-                              ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-300 shadow-sm shadow-indigo-500/10' 
-                              : 'bg-white/5 border-white/5 text-slate-400 hover:border-white/10 hover:text-white'
-                          }`}
+                          className="text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer"
+                          style={isActive ? {
+                            backgroundColor: `${accentColorMap[themeAccent].primary}20`,
+                            borderColor: `${accentColorMap[themeAccent].primary}40`,
+                            color: accentColorMap[themeAccent].primary,
+                            boxShadow: `0 2px 6px ${accentColorMap[themeAccent].glow}`
+                          } : {
+                            backgroundColor: 'rgba(255,255,255,0.05)',
+                            borderColor: 'rgba(255,255,255,0.05)',
+                            color: '#94a3b8'
+                          }}
                         >
                           {preset}
                         </button>
@@ -1895,7 +1914,11 @@ export default function Dashboard({ addToast }) {
                 }
               </span>
               <button 
-                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2.5 px-6 rounded-xl transition-colors cursor-pointer flex items-center gap-2 h-[38px] disabled:opacity-50" 
+                className="text-white font-bold text-xs py-2 px-6 rounded-xl transition-all flex items-center gap-2 h-[38px] disabled:opacity-50 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed hover:brightness-110 active:scale-[0.99]" 
+                style={currentUser ? {
+                  backgroundColor: accentColorMap[themeAccent].primary,
+                  boxShadow: `0 4px 12px ${accentColorMap[themeAccent].glow}`
+                } : {}}
                 onClick={handleUpdateStudyPlan}
                 disabled={!currentUser}
               >
@@ -1963,7 +1986,7 @@ export default function Dashboard({ addToast }) {
                       {nodeIcon}
                     </div>
 
-                    <div className={`p-6 rounded-2xl transition-all duration-300 border ${cardBorder} hover:scale-[1.005]`}>
+                    <div className={`p-4.5 rounded-2xl transition-all duration-300 border ${cardBorder} hover:scale-[1.005]`}>
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-3 border-b border-white/5">
                         <div>
                           <div className="flex items-center gap-3">
@@ -2078,7 +2101,10 @@ export default function Dashboard({ addToast }) {
               }}
             >
               <option value="">All Papers</option>
-              {papers.map(p => <option key={p.id} value={p.id}>GATE CS {p.year}</option>)}
+              {papers.map(p => {
+                const examLabel = selectedExam ? selectedExam.name.replace('-', ' ') : 'GATE CS';
+                return <option key={p.id} value={p.id}>{examLabel} {p.year}</option>;
+              })}
             </select>
           </div>
 

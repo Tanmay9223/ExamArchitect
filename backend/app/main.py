@@ -352,6 +352,9 @@ def get_paper_questions(paper_id: int, topic_id: int = None, subject_id: int = N
                 parent_subject_name = q.topic.name
         result.append({
             "id": q.id,
+            "paper_id": q.paper_id,
+            "paper_year": q.paper.year if q.paper else None,
+            "exam_name": q.paper.exam.name if (q.paper and q.paper.exam) else "GATE-CS",
             "question_number": q.question_number,
             "question_text": q.question_text,
             "question_style": q.question_style,
@@ -407,6 +410,7 @@ def get_global_questions(topic_id: int = None, subject_id: int = None, exam_id: 
             "paper_id": q.paper_id,
             "paper_year": q.paper.year if q.paper else None,
             "paper_name": f"{q.paper.year} {q.paper.session}" if q.paper else None,
+            "exam_name": q.paper.exam.name if (q.paper and q.paper.exam) else "GATE-CS",
             "question_number": q.question_number,
             "question_text": q.question_text,
             "question_style": q.question_style,

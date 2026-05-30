@@ -374,7 +374,11 @@ export default function Admin({ addToast }) {
               value={selectedPaperId || ''}
               onChange={(e) => setSelectedPaperId(parseInt(e.target.value))}
             >
-              {papers.map(p => <option key={p.id} value={p.id}>GATE CS {p.year}</option>)}
+              {papers.map(p => {
+                const selExam = exams.find(ex => ex.id === selectedExamId);
+                const examLabel = selExam ? selExam.name.replace('-', ' ') : 'GATE CS';
+                return <option key={p.id} value={p.id}>{examLabel} {p.year}</option>;
+              })}
             </select>
           </div>
 
