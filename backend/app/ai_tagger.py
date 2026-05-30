@@ -3,15 +3,15 @@ import json
 import base64
 import requests
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from typing import Dict, Any
 
 load_dotenv()
 
 # Configure Gemini
 api_key = os.getenv("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
+client = genai.Client(api_key=api_key) if api_key else None
 
 # Other API keys
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -37,7 +37,6 @@ class AITagger:
         }
         Do not include any other text outside the JSON block. Ensure it is valid JSON.
         """
-        self.model = genai.GenerativeModel('gemini-2.5-pro') if api_key else None
 
     def tag_question_image(self, image_path: str) -> Dict[str, Any]:
         """
@@ -47,11 +46,22 @@ class AITagger:
             return self._fallback_tagger(image_path)
 
         # 1. Try Gemini if configured
-        if self.model:
+        if client:
             try:
                 from PIL import Image
                 img = Image.open(image_path)
-                response = self.model.generate_content([self.system_prompt, img])
+                # Convert PIL image to bytes for the new SDK
+                import io
+                buf = io.BytesIO()
+                img.save(buf, format='PNG')
+                image_bytes = buf.getvalue()
+                response = client.models.generate_content(
+                    model='gemini-2.5-pro',
+                    contents=[
+                        self.system_prompt,
+                        types.Part.from_bytes(data=image_bytes, mime_type='image/png')
+                    ]
+                )
                 return self._parse_json_response(response.text)
             except Exception as e:
                 print(f"Error during Gemini tagging: {e}, falling back to OpenRouter...")

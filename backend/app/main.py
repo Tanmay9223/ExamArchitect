@@ -2,6 +2,7 @@ import os
 import json
 import random
 from pathlib import Path
+from contextlib import asynccontextmanager
 # pyrefly: ignore [missing-import]
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 # pyrefly: ignore [missing-import]
@@ -23,10 +24,18 @@ from .auth import get_password_hash, verify_password, create_access_token, get_c
 from .schemas_auth import UserCreate, UserLogin, UserResponse, Token, PasswordResetRequest, UserGeneratedExamCreate, QuestionFeedbackCreate
 from .rate_limiter import auth_rate_limit, exam_rate_limit, admin_rate_limit
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Make sure DB schema is created and seeded
+    seed_database()
+    yield
+    # Shutdown: nothing to clean up
+
 app = FastAPI(
     title="ExamArchitect API",
     description="Backend API for exam analytics, prediction, and study plans.",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Enable CORS for frontend development
@@ -42,11 +51,6 @@ app.add_middleware(
 _SLICES_DIR = Path(os.path.dirname(os.path.dirname(__file__))) / "data" / "slices"
 _SLICES_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/slices", StaticFiles(directory=str(_SLICES_DIR)), name="slices")
-
-@app.on_event("startup")
-def on_startup():
-    # Make sure DB schema is created and seeded on start
-    seed_database()
 
 @app.get("/health")
 def health_check():
