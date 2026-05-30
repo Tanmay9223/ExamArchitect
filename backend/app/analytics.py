@@ -2,18 +2,16 @@ import os
 import random
 from datetime import datetime
 from sqlalchemy.orm import Session
-import google.generativeai as genai
+from google import genai
 from .models import Topic, TopicYearStat, Prediction, Exam
 
 # Configure Gemini
 api_key = os.getenv("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
+client = genai.Client(api_key=api_key) if api_key else None
 
 class AnalyticsEngine:
     def __init__(self, db: Session):
         self.db = db
-        self.model = genai.GenerativeModel('gemini-2.5-flash') if api_key else None
 
     def generate_predictions(self, exam_id: int, target_year: int = 2026):
         """
@@ -83,7 +81,7 @@ class AnalyticsEngine:
         """Calls Gemini API to generate explanation or falls back to template rationale."""
         desc = f"Topic: {topic_name}. Decadal marks: " + ", ".join(f"{y}: {m}m" for y, m in zip(years, marks))
         
-        if self.model:
+        if client:
             try:
                 prompt = f"""
                 You are an expert Computer Science exam predictor for the GATE CS exam.
@@ -94,7 +92,10 @@ class AnalyticsEngine:
                 Reference the trend, frequency of occurrence, and its relative importance in a typical computer science syllabus.
                 Do not include introduction or preamble. Return ONLY the 2-3 sentences.
                 """
-                response = self.model.generate_content(prompt)
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=prompt
+                )
                 rationale = response.text.strip()
                 if rationale:
                     return rationale
